@@ -277,9 +277,13 @@ int mpi_hook_client_init (char *mpi_type)
 {
 	debug("mpi type = %s", mpi_type);
 
-	if(_mpi_init(mpi_type) == SLURM_ERROR)
+#ifndef USE_LOADLEVELER
+	if (!mpi_type && !strcasecmp(mpi_type, "list"))
+		info("ibm_pe_mpi");
+#else
+	if (_mpi_init(mpi_type) == SLURM_ERROR)
 		return SLURM_ERROR;
-
+#endif
 	return SLURM_SUCCESS;
 }
 
