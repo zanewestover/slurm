@@ -1,7 +1,7 @@
 This file describes changes in recent versions of SLURM. It primarily
 documents those changes that are of interest to users and admins.
 
-* Changes in SLURM 2.4.0.ll2
+* Changes in SLURM 2.4.0.ll3
 ============================
  -- Fix support for srun --mpi option.
  -- Set either HAVE_LLAPI_H or HAVE_LLRAPI_H in slurm.conf at configure
