@@ -1280,7 +1280,7 @@ extern char *salloc_front_end (void)
 	if (gethostname_short(hostname, sizeof(hostname)))
 		fatal("gethostname_short(): %m");
 	xstrfmtcat(exec_line, "%s/bin/salloc --salloc-be %s %hu %u\n",
-		   SLURM_PREFIX, hostname, comm_port, fe_auth_key);
+		   SLURM_PREFIX_CN, hostname, comm_port, fe_auth_key);
 
 	return exec_line;
 }
@@ -2680,35 +2680,35 @@ extern int slurm_submit_batch_job(job_desc_msg_t *req,
 		if (!strcmp(shell, "csh") || !strcmp(shell, "tcsh")) {
 			xstrfmtcat(set_job_id,
 				   "setenv SLURM_JOBID `%s/bin/srun --jobid`\n",
-				   SLURM_PREFIX);
+				   SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id,
 				   "setenv SLURM_JOB_ID $SLURM_JOBID\n");
 			xstrfmtcat(set_job_id,
 				   "setenv SLURM_NNODES `%s/bin/srun --nodecnt`\n",
-				   SLURM_PREFIX);
+				   SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id,
 				   "setenv SLURM_NPROCS `%s/bin/srun --taskcnt`\n",
-				   SLURM_PREFIX);
+				   SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id,
 				   "setenv SLURM_NODELIST `%s/bin/srun --nodelist`\n",
-				    SLURM_PREFIX);
+				    SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id, 
 				   "setenv SLURM_JOB_NODELIST $SLURM_NODELIST\n");
 		} else {	/* bash, ksh, sh */
 			xstrfmtcat(set_job_id, 
 				   "export SLURM_JOBID=`%s/bin/srun --jobid`\n",
-				    SLURM_PREFIX);
+				    SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id, 
 				   "export SLURM_JOB_ID=$SLURM_JOBID\n");
 			xstrfmtcat(set_job_id,
 				   "export SLURM_NNODES=`%s/bin/srun --nodecnt`\n",
-				   SLURM_PREFIX);
+				   SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id,
 				   "export SLURM_NPROCS=`%s/bin/srun --taskcnt`\n",
-				   SLURM_PREFIX);
+				   SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id,
 				   "export SLURM_NODELIST=`%s/bin/srun --nodelist`\n",
-				    SLURM_PREFIX);
+				    SLURM_PREFIX_CN);
 			xstrfmtcat(set_job_id, 
 				   "export SLURM_JOB_NODELIST=$SLURM_NODELIST\n");
 		}

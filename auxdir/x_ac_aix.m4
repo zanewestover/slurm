@@ -103,4 +103,13 @@ AC_DEFUN([X_AC_AIX],
    AM_CONDITIONAL(HAVE_LLRAPI_H,   test "x$ac_with_llrapi_h" = "xyes")
    AM_CONDITIONAL(USE_LOADLEVELER, test "x$ac_with_load_leveler" = "xyes")
 
+   AC_ARG_WITH([compute_node_install],
+     AS_HELP_STRING(--with-compute_node_install=PATH,Specify path to SLURM's installation on the compute nodes),
+     [ac_with_compute_node_install="$withval"]
+   )
+   if test "x$ac_with_compute_node_install" = "x"; then
+     AC_DEFINE_UNQUOTED(SLURM_PREFIX_CN, "$prefix", [Define Slurm installation prefix on the compute nodes])
+   else
+     AC_DEFINE_UNQUOTED(SLURM_PREFIX_CN, "$withval", [Define Slurm installation prefix on the compute nodes])
+   fi
 ])

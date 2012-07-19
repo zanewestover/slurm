@@ -55,9 +55,6 @@ dnl ok now check if any bluegene was loaded.
 AM_CONDITIONAL(BLUEGENE_LOADED, test "x$ac_bluegene_loaded" = "xyes")
 AC_SUBST(BLUEGENE_LOADED)
 
-
-X_AC_AIX
-
 dnl
 dnl Check to see if this architecture should use slurm_* prefix function
 dnl aliases for plugins.
@@ -268,11 +265,13 @@ X_AC_SLURM_PORTS([6817], [6818], [6819], [1])
 dnl add SLURM_PREFIX to config.h
 dnl
 if test "x$prefix" == "xNONE" ; then
-  AC_DEFINE_UNQUOTED(SLURM_PREFIX, "/usr/local", [Define Slurm installation prefix])
-else
-  AC_DEFINE_UNQUOTED(SLURM_PREFIX, "$prefix", [Define Slurm installation prefix])
+  prefix="/usr/local"
 fi
+AC_DEFINE_UNQUOTED(SLURM_PREFIX, "$prefix", [Define Slurm installation prefix])
 AC_SUBST(SLURM_PREFIX)
+
+dnl must be executed after the variable prefix is set
+X_AC_AIX
 
 dnl check for whether to include Elan support
 dnl

@@ -404,11 +404,21 @@ the path, one possible location is "/opt/ibmll/LoadL/scheduler/full").
 In addition the <i>readline-devel</i> may be missing on your system.
 If that is the case, SLURM support for the readline function will need to be
 disabled at SLURM's build time.
+If you decide to install SLURM in a directory on compute nodes that differs
+from the install directry on the login node, this is possible only if the
+SLURM commands executed on the login node can submit a batch job in which the
+path the the SLURM commands is identified. You can do this by configuring
+SLURM on the login node using the option
+"--with-compute_node_install=&lt;path&gt;" where "&lt;path&gt;" is the fully
+qualified path of SLURM's install directory on the compute nodes.
+The "--with-compute_node_install" is only needed if the install path on the
+compute nodes differs from that of the login nodes and the option is only
+required for the SLURM build on the login nodes.
 If SLURM's "configure" program is invoked by the "rpmbuild" command, then in
-your "~/.rpmmacros" file should look something like this:</p>
+your "~/.rpmmacros" file would look something like this:</p>
 <pre>
-%_with_loadleveler &lt;path&gt;
-%_without_readline 1
+%_with_loadleveler "/opt/ibmll/LoadL/resmgr/full"
+%_with_compute_node_install "/opt/slurm"
 </pre>
 <p>for the same result.
 Only one RPM file will be created with all of the required files.</p>
@@ -418,6 +428,6 @@ when operating with LoadLeveler.</p>
 
 <p class="footer"><a href="#top">top</a></p>
 
-<p style="text-align:center;">Last modified 16 March 2012</p>
+<p style="text-align:center;">Last modified 19 July 2012</p>
 
 <!--#include virtual="footer.txt"-->

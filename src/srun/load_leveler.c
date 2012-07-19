@@ -1496,7 +1496,7 @@ extern int srun_front_end (char *cmd_line, bool  srun_alloc)
 	/* Generate back-end execute line */
 	gethostname_short(hostname, sizeof(hostname));
 	xstrfmtcat(exec_line, "%s/bin/srun --srun-be %s %hu %hu %hu %u %s",
-		   SLURM_PREFIX, hostname, port_o, port_e, port_s, auth_key,
+		   SLURM_PREFIX_CN, hostname, port_o, port_e, port_s, auth_key,
 		   cmd_line);
 #if _DEBUG_SRUN
 	printf("%s\n", exec_line);

@@ -3,6 +3,13 @@ documents those changes that are of interest to users and admins.
 
 * Changes in SLURM 2.4.0.ll2
 ============================
+ -- Fix support for srun --mpi option.
+ -- Set either HAVE_LLAPI_H or HAVE_LLRAPI_H in slurm.conf at configure
+    time and test for either flag in the SLURM code.
+ -- Add support for new configure option "--with-compute_node_install".
+
+* Changes in SLURM 2.4.0.ll2
+============================
  -- Add support for two different sets of locations for LoadLeveler API
     header and library files.
  -- Fix to setting of LoadLeveler network paramter in batch job submission.
