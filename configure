@@ -6065,11 +6065,7 @@ $as_echo "#define HAVE_LLAPI_H 1" >>confdefs.h
        elif test -f "$withval/lib64/libllrapi.so" && test -f "$withval/include/llrapi.h"; then
           LDFLAGS="-L$withval/lib64 -lllrapi $LDFLAGS"
           LOADLEVELER_INCLUDES="-I$withval/include"
-          ac_with_llapi_h="yes"
           ac_with_llrapi_h="yes"
-
-$as_echo "#define HAVE_LLAPI_H 1" >>confdefs.h
-
 
 $as_echo "#define HAVE_LLRAPI_H 1" >>confdefs.h
 

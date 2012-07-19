@@ -86,7 +86,7 @@ static slurm_fd_t fe_comm_socket = -1;
 static char      *fe_job_id = NULL;
 static bool       fe_job_killed = false;
 
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 /*****************************************************************************\
  * Local symbols
 \*****************************************************************************/
@@ -900,7 +900,7 @@ static uint32_t _gen_auth_key(void)
 	return key;
 }
 
-#ifndef HAVE_LLAPI_H
+#if !defined(HAVE_LLAPI_H) && !defined(HAVE_LLRAPI_H)
 /* Abort the back-end job
  * Return true if abort message send */
 static bool _xmit_abort(void)
@@ -1483,7 +1483,7 @@ extern int slurm_kill_job_step (char *job_id, uint32_t step_id,
 extern int slurm_load_job (job_info_msg_t **resp, char *job_id,
 			   uint16_t show_flags)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	job_info_msg_t *job_info_ptr;
 	job_info_t *job_ptr;
 	LL_element *credential, *job, *query_object, *step;
@@ -1611,7 +1611,7 @@ extern int slurm_job_node_ready(char *job_id)
 extern int slurm_load_jobs (time_t update_time, job_info_msg_t **resp,
 			    uint16_t show_flags)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	job_info_msg_t *job_info_ptr;
 	job_info_t *job_ptr;
 	LL_element *credential, *job, *query_object, *step;
@@ -1766,7 +1766,7 @@ extern int slurm_get_job_steps (time_t update_time, char *job_id,
 				job_step_info_response_msg_t **resp,
 				uint16_t show_flags)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	job_step_info_response_msg_t *step_info_ptr;
 	job_step_info_t *step_ptr;
 	LL_element *query_object, *credential, *job, *step;
@@ -1895,7 +1895,7 @@ extern int slurm_job_step_stat(char *job_id, uint32_t step_id,
 			       char *node_list,
 			       job_step_stat_response_msg_t **resp)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	LL_element *query_object, *job, *step;
 	char *sstat_host = NULL;
 	char *sstat_source;
@@ -2003,7 +2003,7 @@ fini:	ll_free_objs(job);
 extern int slurm_load_node (time_t update_time,
 			    node_info_msg_t **resp, uint16_t show_flags)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	node_info_msg_t *node_info_ptr;
 	LL_element *query_object, *machine, *resource;
 	int cpus, err_code, i, obj_count, rc;
@@ -2207,7 +2207,7 @@ extern int slurm_load_partitions (time_t update_time,
 				  partition_info_msg_t **resp,
 				  uint16_t show_flags)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	partition_info_msg_t *part_info_ptr;
 	partition_info_t *part_ptr;
 	int obj_count, part_inx = -1;
@@ -2394,7 +2394,7 @@ extern int slurm_signal_job_step (char *job_id, uint32_t step_id,
 	return slurm_terminate_job_step (job_id, step_id);
 }
 
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 static int _term_step_id (char *step_id_str)
 {
 	int rc;
@@ -2448,7 +2448,7 @@ static int _term_step_id (char *step_id_str)
  */
 extern int slurm_terminate_job (char *job_id)
 {
-#ifndef HAVE_LLAPI_H
+#if !defined(HAVE_LLAPI_H) && !defined(HAVE_LLRAPI_H)
 	if (fe_job_id && !strcmp(fe_job_id, job_id))
 		fe_job_killed = true;
 	(void) _xmit_abort();
@@ -2534,7 +2534,7 @@ extern int slurm_terminate_job (char *job_id)
  */
 extern int slurm_terminate_job_step (char *job_id, uint32_t step_id)
 {
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 	LL_element *job, *step, *query_object;
 	int err_code, obj_count, rc = 0;
 	bool match_job_id, match_step_id;
@@ -3118,7 +3118,7 @@ extern int slurm_submit_batch_job(job_desc_msg_t *req,
 		offset += wrote;
 	}
 
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 {
 	LL_job job_info;
 	submit_response_msg_t *resp_ptr;
@@ -3350,7 +3350,7 @@ slurm_allocation_lookup_lite(char *jobid,
 	job_ptr = &job_info_msg->job_array[i];
 	if (i >= job_info_msg->record_count) {
 		/* could not find this job */
-#ifdef HAVE_LLAPI_H
+#if defined(HAVE_LLAPI_H) || defined(HAVE_LLRAPI_H)
 		slurm_seterrno(ESLURM_INVALID_JOB_ID);
 		rc = -1;
 #else
