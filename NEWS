@@ -7,6 +7,8 @@ documents those changes that are of interest to users and admins.
  -- Set either HAVE_LLAPI_H or HAVE_LLRAPI_H in slurm.conf at configure
     time and test for either flag in the SLURM code.
  -- Add support for new configure option "--with-compute_node_install".
+ -- Modify the library that an application links to for MPI type jobs (match
+    both "libmpi.so" and "libmpich.so").
 
 * Changes in SLURM 2.4.0.ll2
 ============================
