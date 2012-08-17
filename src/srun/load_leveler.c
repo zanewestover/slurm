@@ -871,6 +871,7 @@ static void _parse_prog_line(char *in_line, int *num_tasks, char **cmd,
 	int first_cmd_inx,  last_cmd_inx;
 	int first_task_inx, last_task_inx;
 	hostset_t hs;
+	char *tmp_str = NULL;
 
 	/* Get the task ID string */
 	for (i = 0; in_line[i]; i++) {
@@ -922,7 +923,9 @@ static void _parse_prog_line(char *in_line, int *num_tasks, char **cmd,
 
 	/* Now transfer data to the function arguments */
 	in_line[last_task_inx] = '\0';
-	hs = hostset_create(in_line + first_task_inx);
+	xstrfmtcat(tmp_str, "[%s]", in_line + first_task_inx);
+	hs = hostset_create(tmp_str);
+	xfree(tmp_str);
 	in_line[last_task_inx] = ' ';
 	if (!hs)
 		goto bad_line;
