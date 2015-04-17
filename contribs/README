@@ -89,6 +89,11 @@ of the SLURM contribs distribution follows:
      2. It is not possible to use PTRACE_DETACH to leave a process stopped,
      because ptrace ignores SIGSTOPs sent by the tracing process.
 
+  simulator/         [ Slurm simulator ]
+     Run Slurm in simulation mode in order to evaluate various scheduling
+     parameters. For more information, see
+     http://slurm.schedmd.com/slurm_ug_2011/slurm_simulator_phoenix.pdf
+
   sgather            [ shell script ]
      Gather remote files from a job into a central location. Reverse of of
      sbcast command.

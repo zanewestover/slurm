@@ -3088,6 +3088,35 @@ extern void re_kill_job(struct job_record *job_ptr)
 	last_job_id = job_ptr->job_id;
 	hostlist_destroy(kill_hostlist);
 	agent_args->msg_args = kill_job;
+
+#ifndef SLURM_SIMULATOR
 	agent_queue_request(agent_args);
+#else
+{
+	slurm_msg_t msg, resp;
+	char *nodename;
+
+	slurm_msg_t_init(&msg);
+	msg.msg_type = REQUEST_TERMINATE_JOB;
+	msg.data = kill_job;
+
+	nodename = hostlist_shift(agent_args->hostlist);
+	info("SIM: sending message type REQUEST_TERMINATE_JOB (%u) to %s",
+	     kill_job->job_id, nodename);
+	if (slurm_conf_get_addr(nodename, &msg.address) != SLURM_SUCCESS) {
+		error("SIM: can't find address for host %s, check slurm.conf",
+		      nodename);
+	}
+	if (slurm_send_recv_node_msg(&msg, &resp, 5000000) != SLURM_SUCCESS) {
+		error("SIM: slurm_send_only_node_msg failed");
+	} else {
+		info("SIM: REQUEST_TERMINATE_JOB (%u) to %s WAS SENT",
+		     kill_job->job_id, nodename);
+	}
+	slurm_free_kill_job_msg(kill_job);
+	hostlist_destroy(agent_args->hostlist);
+	xfree(agent_args);
+}
+#endif
 	return;
 }

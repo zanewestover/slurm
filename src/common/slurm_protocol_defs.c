@@ -1117,6 +1117,17 @@ extern void slurm_free_checkpoint_resp_msg(checkpoint_resp_msg_t *msg)
 		xfree(msg);
 	}
 }
+
+extern void slurm_free_sim_job_msg(sim_job_msg_t *msg)
+{
+	xfree(msg);
+}
+
+extern void slurm_free_sim_helper_msg(sim_helper_msg_t *msg)
+{
+	xfree(msg);
+}
+
 extern void slurm_free_suspend_msg(suspend_msg_t *msg)
 {
 	if (msg) {
@@ -3229,6 +3240,12 @@ extern int slurm_free_msg_data(slurm_msg_type_t type, void *data)
 		break;
 	case REQUEST_FRONT_END_INFO:
 		slurm_free_front_end_info_request_msg(data);
+		break;
+	case REQUEST_SIM_JOB:
+		slurm_free_sim_job_msg(data);
+		break;
+	case MESSAGE_SIM_HELPER_CYCLE:
+		slurm_free_sim_helper_msg(data);
 		break;
 	case REQUEST_SUSPEND:
 	case SRUN_REQUEST_SUSPEND:

@@ -172,6 +172,7 @@ inline static void  _slurm_rpc_takeover(slurm_msg_t * msg);
 inline static void  _slurm_rpc_set_debug_flags(slurm_msg_t *msg);
 inline static void  _slurm_rpc_set_debug_level(slurm_msg_t *msg);
 inline static void  _slurm_rpc_set_schedlog_level(slurm_msg_t *msg);
+inline static void  _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg);;
 inline static void  _slurm_rpc_shutdown_controller(slurm_msg_t * msg);
 inline static void  _slurm_rpc_shutdown_controller_immediate(slurm_msg_t *
 							     msg);
@@ -504,6 +505,10 @@ void slurmctld_req(slurm_msg_t *msg, connection_arg_t *arg)
 	case REQUEST_SET_SCHEDLOG_LEVEL:
 		_slurm_rpc_set_schedlog_level(msg);
 		slurm_free_set_debug_level_msg(msg->data);
+		break;
+	case MESSAGE_SIM_HELPER_CYCLE:
+		_slurm_rpc_sim_helper_cycle(msg);
+		slurm_free_sim_helper_msg(msg->data);
 		break;
 	case ACCOUNTING_UPDATE_MSG:
 		_slurm_rpc_accounting_update_msg(msg);
@@ -1682,6 +1687,12 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t * msg)
 	char jbuf[JBUFSIZ];
 
 	START_TIMER;
+
+#ifdef SLURM_SIMULATOR
+	info("SIM: Processing RPC: MESSAGE_EPILOG_COMPLETE for jobid %u",
+	     epilog_msg->job_id);
+	slurm_send_rc_msg(msg, SLURM_SUCCESS);
+#endif
 	debug2("Processing RPC: MESSAGE_EPILOG_COMPLETE uid=%d", uid);
 	if (!validate_slurm_user(uid)) {
 		error("Security violation, EPILOG_COMPLETE RPC from uid=%d",
@@ -1717,6 +1728,7 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t * msg)
 		       epilog_msg->node_name, TIME_STR);
 
 	/* Functions below provide their own locking */
+#ifndef SLURM_SIMULATOR
 	if (run_scheduler) {
 		/*
 		 * In defer mode, avoid triggering the scheduler logic
@@ -1731,6 +1743,7 @@ static void  _slurm_rpc_epilog_complete(slurm_msg_t * msg)
 		schedule_node_save();		/* Has own locking */
 		schedule_job_save();		/* Has own locking */
 	}
+#endif
 
 	/* NOTE: RPC has no response */
 }
@@ -3237,11 +3250,13 @@ static void _slurm_rpc_submit_batch_job(slurm_msg_t * msg)
 	response_msg.protocol_version = msg->protocol_version;
 
 	/* do RPC call */
+#ifndef SLURM_SIMULATOR
 	if ( (uid != job_desc_msg->user_id) && (!validate_super_user(uid)) ) {
 		/* NOTE: Super root can submit a batch job for any user */
 		error_code = ESLURM_USER_ID_MISSING;
 		error("Security violation, SUBMIT_JOB from uid=%d", uid);
 	}
+#endif
 	if ((job_desc_msg->alloc_node == NULL) ||
 	    (job_desc_msg->alloc_node[0] == '\0')) {
 		error_code = ESLURM_INVALID_NODE_NAME;
@@ -4829,6 +4844,16 @@ inline static void  _slurm_rpc_set_schedlog_level(slurm_msg_t *msg)
 		info("sched: Set scheduler log level to %d", schedlog_level);
 
 	slurm_send_rc_msg(msg, SLURM_SUCCESS);
+}
+
+static void _slurm_rpc_sim_helper_cycle(slurm_msg_t * msg)
+{
+	sim_helper_msg_t *helper_msg = (sim_helper_msg_t *) msg->data;
+
+	info("Processing RPC: MESSAGE_SIM_HELPER_CYCLE for %d jobs",
+	     helper_msg->total_jobs_ended);
+	slurm_send_rc_msg(msg, SLURM_SUCCESS);
+	schedule(0);
 }
 
 inline static void  _slurm_rpc_accounting_update_msg(slurm_msg_t *msg)

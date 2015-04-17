@@ -509,8 +509,10 @@ int main(int argc, char *argv[])
 
 		if (slurm_priority_init() != SLURM_SUCCESS)
 			fatal("failed to initialize priority plugin");
+#ifndef SLURM_SIMULATOR
 		if (slurm_sched_init() != SLURM_SUCCESS)
 			fatal("failed to initialize scheduling plugin");
+#endif
 		if (slurmctld_plugstack_init())
 			fatal("failed to initialize slurmctld_plugstack");
 		if (bb_g_init() != SLURM_SUCCESS )
@@ -547,6 +549,7 @@ int main(int argc, char *argv[])
 		}
 		slurm_attr_destroy(&thread_attr);
 
+#ifndef SLURM_SIMULATOR
 		/*
 		 * create attached thread for state save
 		 */
@@ -558,6 +561,7 @@ int main(int argc, char *argv[])
 			sleep(1);
 		}
 		slurm_attr_destroy(&thread_attr);
+#endif
 
 		/*
 		 * create attached thread for node power management
@@ -1051,7 +1055,6 @@ static void *_slurmctld_rpc_mgr(void *no_data)
 static void *_service_connection(void *arg)
 {
 	connection_arg_t *conn = (connection_arg_t *) arg;
-	void *return_code = NULL;
 	slurm_msg_t *msg = xmalloc(sizeof(slurm_msg_t));
 
 #if HAVE_SYS_PRCTL_H
@@ -1089,7 +1092,8 @@ cleanup:
 	slurm_free_msg(msg);
 	xfree(arg);
 	_free_server_thread();
-	return return_code;
+	pthread_exit(NULL);
+	return NULL;
 }
 
 /* Increment slurmctld_config.server_thread_count and don't return
@@ -1546,6 +1550,7 @@ static void *_slurmctld_background(void *no_data)
 			unlock_slurmctld(node_write_lock);
 		}
 
+#ifndef SLURM_SIMULATOR
 		if (slurmctld_conf.acct_gather_node_freq &&
 		    (difftime(now, last_acct_gather_node_time) >=
 		     slurmctld_conf.acct_gather_node_freq) &&
@@ -1596,6 +1601,7 @@ static void *_slurmctld_background(void *no_data)
 			_queue_reboot_msg();
 			unlock_slurmctld(node_write_lock);
 		}
+#endif
 
 		/* Process any pending agent work */
 		agent_retry(RPC_RETRY_INTERVAL, true);
@@ -1668,6 +1674,7 @@ static void *_slurmctld_background(void *no_data)
 			unlock_slurmctld(job_node_read_lock);
 		}
 
+#ifndef SLURM_SIMULATOR
 		if (difftime(now, last_checkpoint_time) >=
 		    PERIODIC_CHECKPOINT) {
 			now = time(NULL);
@@ -1675,6 +1682,7 @@ static void *_slurmctld_background(void *no_data)
 			debug2("Performing full system state save");
 			save_all_state();
 		}
+#endif
 
 		if (difftime(now, last_node_acct) >= PERIODIC_NODE_ACCT) {
 			/* Report current node state to account for added
@@ -1815,9 +1823,9 @@ extern void ctld_assoc_mgr_init(slurm_trigger_callbacks_t *callbacks)
 		num_jobs = list_count(job_list);
 	unlock_slurmctld(job_read_lock);
 
+#ifndef SLURM_SIMULATOR
 	/* This thread is looking for when we get correct data from
-	   the database so we can update the assoc_ptr's in the jobs
-	*/
+	 * the database so we can update the assoc_ptr's in the jobs */
 	if (running_cache || num_jobs) {
 		pthread_attr_t thread_attr;
 
@@ -1829,7 +1837,7 @@ extern void ctld_assoc_mgr_init(slurm_trigger_callbacks_t *callbacks)
 		}
 		slurm_attr_destroy(&thread_attr);
 	}
-
+#endif
 }
 
 /* send all info for the controller to accounting */
@@ -2427,6 +2435,7 @@ static void _become_slurm_user(void)
 		info("Not running as root. Can't drop supplementary groups");
 	}
 
+#ifndef SLURM_SIMULATOR
 	/* Set GID to GID of SlurmUser */
 	if ((slurm_user_gid != getegid()) &&
 	    (setgid(slurm_user_gid))) {
@@ -2439,6 +2448,7 @@ static void _become_slurm_user(void)
 		fatal("Can not set uid to SlurmUser(%u): %m",
 		      slurmctld_conf.slurm_user_id);
 	}
+#endif
 }
 
 /* Return true if node_name (a global) is a valid controller host name */

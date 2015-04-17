@@ -241,11 +241,13 @@ typedef enum {
 	REQUEST_BURST_BUFFER_INFO,
 	RESPONSE_BURST_BUFFER_INFO,
 	REQUEST_JOB_USER_INFO,
-	REQUEST_NODE_INFO_SINGLE,  /* 2040 */
+	REQUEST_NODE_INFO_SINGLE,	/* 2040 */
 	REQUEST_CACHE_INFO,
 	RESPONSE_CACHE_INFO,
 	REQUEST_SICP_INFO,
 	RESPONSE_SICP_INFO,
+	REQUEST_SIM_JOB,		/* Slurm simulator */
+	MESSAGE_SIM_HELPER_CYCLE,	/* Slurm simulator */
 
 	REQUEST_UPDATE_JOB = 3001,
 	REQUEST_UPDATE_NODE,
@@ -1091,6 +1093,19 @@ typedef struct {
 } spank_env_responce_msg_t;
 
 typedef struct slurm_ctl_conf slurm_ctl_conf_info_msg_t;
+
+/*****************************************************************************\
+ *	SLURM SIMULATOR
+\*****************************************************************************/
+typedef struct sim_job_msg {
+	uint32_t job_id;
+	uint32_t duration;
+} sim_job_msg_t;
+
+typedef struct sim_helper_msg {
+	uint32_t total_jobs_ended;
+} sim_helper_msg_t;
+
 /*****************************************************************************\
  *	SLURM MESSAGE INITIALIZATION
 \*****************************************************************************/
@@ -1275,6 +1290,9 @@ extern void slurm_free_cache_info_request_msg(cache_info_request_msg_t *);
 
 extern int  slurm_load_sicp(sicp_info_msg_t **sicp_buffer_pptr);
 extern void slurm_free_sicp_msg(sicp_info_msg_t * sicp_buffer_ptr);
+
+extern void slurm_free_sim_job_msg(sim_job_msg_t *msg);
+extern void slurm_free_sim_helper_msg(sim_helper_msg_t *msg);
 
 extern char *preempt_mode_string(uint16_t preempt_mode);
 extern uint16_t preempt_mode_num(const char *preempt_mode);

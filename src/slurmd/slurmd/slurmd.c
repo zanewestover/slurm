@@ -198,6 +198,18 @@ static void      _usage(void);
 static int       _validate_and_convert_cpu_list(void);
 static void      _wait_for_all_threads(int secs);
 
+#ifdef SLURM_SIMULATOR
+volatile simulator_event_t *head_simulator_event;
+volatile simulator_event_t *head_sim_completed_jobs;
+int total_sim_events = 0;
+
++pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
+static int  _send_complete_batch_script_msg(uint32_t jobid, int err,
+					    int status);
+static int  _send_sim_helper_cycle_msg(uint32_t jobs_count);
+static void *_simulator_helper(void *arg);
+static void _spawn_simulator_helper(void);
+#endif
 
 int
 main (int argc, char *argv[])
@@ -358,6 +370,9 @@ main (int argc, char *argv[])
 		fatal("failed to initialize slurmd_plugstack");
 
 	_spawn_registration_engine();
+#ifdef SLURM_SIMULATOR
+	_spawn_simulator_helper();
+#endif
 	_msg_engine();
 
 	/*
@@ -427,6 +442,7 @@ _registration_engine(void *arg)
 	}
 
 	_decrement_thd_count();
+	pthread_exit(NULL);
 	return NULL;
 }
 
@@ -590,6 +606,7 @@ cleanup:
 	xfree(con);
 	slurm_free_msg(msg);
 	_decrement_thd_count();
+	pthread_exit(NULL);
 	return NULL;
 }
 
@@ -1502,6 +1519,7 @@ _slurmd_init(void)
 	}
 #endif /* !NDEBUG */
 
+#ifndef SLURM_SIMULATOR
 	/*
 	 * Create a context for verifying slurm job credentials
 	 */
@@ -1512,6 +1530,7 @@ _slurmd_init(void)
 		 * for shorter cache searches and higher throughput */
 		slurm_cred_ctx_set(conf->vctx, SLURM_CRED_OPT_EXPIRY_WINDOW, 5);
 	}
+#endif /* !SLURM_SIMULATOR */
 
 	/*
 	 * Create slurmd spool directory if necessary.
@@ -2182,3 +2201,169 @@ static void _resource_spec_fini(void)
 	FREE_NULL_BITMAP(res_core_bitmap);
 	FREE_NULL_BITMAP(res_cpu_bitmap);
 }
+
+#ifdef SLURM_SIMULATOR
+static void _spawn_simulator_helper(void)
+{
+	int            rc;
+	pthread_attr_t attr;
+	pthread_t      id;
+	int            retries = 0;
+
+	slurm_attr_init(&attr);
+	rc = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	if (rc != 0) {
+		errno = rc;
+		fatal("Unable to set detachstate on attr: %m");
+		slurm_attr_destroy(&attr);
+		return;
+	}
+
+	while (pthread_create(&id, &attr, &_simulator_helper, NULL)) {
+		error("simulator_helper: pthread_create: %m");
+		if (++retries > 3)
+			fatal("simulator_helper: pthread_create: %m");
+		usleep(10);	/* sleep and again */
+	}
+
+	return;
+}
+
+static int
+_send_complete_batch_script_msg(uint32_t jobid, int err, int status)
+{
+	int		rc, i;
+	slurm_msg_t	req_msg;
+	complete_batch_script_msg_t req;
+	struct timespec waiting;
+
+	req.job_id	= jobid;
+	req.job_rc      = status;
+	req.slurm_rc	= err;
+
+	slurm_msg_t_init(&req_msg);
+	req.node_name	= NULL;
+	req_msg.msg_type= REQUEST_COMPLETE_BATCH_SCRIPT;
+	req_msg.data	= &req;
+
+	info("SIM: sending REQUEST_COMPLETE_BATCH_SCRIPT");
+
+	/* Note: these log messages don't go to slurmd.log from here */
+	for (i = 0; i <= 5; i++) {
+		if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
+			break;
+		info("SIM: Retrying job complete RPC for %u", jobid);
+		waiting.tv_sec = 0;
+		waiting.tv_nsec = 10000000;
+		nanosleep(&waiting, 0);
+	}
+	if (i > 5) {
+		sleep(10);
+		error("SIM: Unable to send job complete message: %m");
+		return SLURM_ERROR;
+	}
+
+	if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
+		rc = SLURM_SUCCESS;
+	if (rc)
+		slurm_seterrno_ret(rc);
+	return SLURM_SUCCESS;
+}
+
+static int _send_sim_helper_cycle_msg(uint32_t jobs_count)
+{
+	int		rc, i;
+	slurm_msg_t	req_msg;
+	sim_helper_msg_t req;
+	struct timespec waiting;
+
+	req.total_jobs_ended = jobs_count;
+
+	slurm_msg_t_init(&req_msg);
+	req_msg.msg_type= MESSAGE_SIM_HELPER_CYCLE;
+	req_msg.data	= &req;
+
+	info("SIM: sending MESSAGE_SIM_HELPER_CYCLE");
+
+	/* Note: these log messages don't go to slurmd.log from here */
+	for (i = 0; i <= 5; i++) {
+		if (slurm_send_recv_controller_rc_msg(&req_msg, &rc) == 0)
+			break;
+		info("SIM: Retrying message helper cycle RPC");
+		waiting.tv_sec = 0;
+		waiting.tv_nsec = 10000000;
+		nanosleep(&waiting, 0);
+	}
+	if (i > 5) {
+		sleep(10);
+		error("SIM: Unable to send message helper cycle complete message: %m");
+		return SLURM_ERROR;
+	}
+
+	if ((rc == ESLURM_ALREADY_DONE) || (rc == ESLURM_INVALID_JOB_ID))
+		rc = SLURM_SUCCESS;
+	if (rc)
+		slurm_seterrno_ret(rc);
+	return SLURM_SUCCESS;
+}
+
+static void *_simulator_helper(void *arg)
+{
+	time_t now = 0, last = 0;
+	int jobs_ended;
+
+	_increment_thd_count();
+	info("SIM: Simulator Helper starting...");
+	while (!_shutdown) {
+		jobs_ended = 0;
+		now = time(NULL);
+		if ((now - last != 1) && (last > 0)) {
+			info("Simulator Helper cycle ERROR: last %ld and now %ld",
+			     last, now);
+		}
+		pthread_mutex_lock(&simulator_mutex);
+		if (head_simulator_event) {
+			info("Simulator Helper cycle: %ld, Next event at %ld, "
+			     "total_sim_events: %d",
+			     now, head_simulator_event->when, total_sim_events);
+		} else {
+			info("Simulator Helper cycle: %ld, No events!!!", now);
+		}
+		while ((head_simulator_event) &&
+		       (now >= head_simulator_event->when)) {
+			simulator_event_t *aux;
+			int event_jid;
+			event_jid = head_simulator_event->job_id;
+			aux = head_simulator_event;
+			head_simulator_event = head_simulator_event->next;
+			aux->next = head_sim_completed_jobs;
+			head_sim_completed_jobs = aux;
+			total_sim_events--;
+			info("SIM: Sending JOB_COMPLETE_BATCH_SCRIPT for job %d",
+			     event_jid);
+			pthread_mutex_unlock(&simulator_mutex);
+			_send_complete_batch_script_msg(event_jid,
+							SLURM_SUCCESS, 0);
+			pthread_mutex_lock(&simulator_mutex);
+			info("SIM: JOB_COMPLETE_BATCH_SCRIPT for job %d SENT",
+			     event_jid);
+			jobs_ended++;
+		}
+		pthread_mutex_unlock(&simulator_mutex);
+		last = now;
+		if (jobs_ended) {
+			/* Let's give some time to EPILOG_MESSAGE process to
+			 * terminate  */
+			/* TODO: It should be done better with a counter of
+			 * EPILOG messages processed */
+			usleep(5000);
+			_send_sim_helper_cycle_msg(jobs_ended);
+		}
+		sleep(1);
+	}
+	info("SIM: Simulator Helper finishing...");
+	pthread_exit(0);
+	_decrement_thd_count();
+	return NULL;
+}
+#endif

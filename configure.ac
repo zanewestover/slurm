@@ -443,6 +443,7 @@ AC_CONFIG_FILES([Makefile
 		 contribs/phpext/slurm_php/config.m4
 		 contribs/sgather/Makefile
 		 contribs/sgi/Makefile
+		 contribs/simulator/Makefile
 		 contribs/sjobexit/Makefile
 		 contribs/slurmdb-direct/Makefile
 		 contribs/pmi2/Makefile

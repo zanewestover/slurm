@@ -472,6 +472,7 @@ void *_fwd_tree_thread(void *arg)
 
 	_destroy_tree_fwd(fwd_tree);
 
+	pthread_exit(NULL);
 	return NULL;
 }
 

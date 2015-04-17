@@ -112,6 +112,28 @@ AC_DEFUN([X_AC_DEBUG], [
       esac
     ]
   )
+
+  AC_MSG_CHECKING([whether to enable slurm simulator])
+  AC_ARG_ENABLE(
+    [simulator],
+     AS_HELP_STRING(--enable-simulator, enable slurm simulator),
+     [ case "$enableval" in
+        yes) x_ac_simulator=yes ;;
+         no) x_ac_simulator=no ;;
+          *) AC_MSG_RESULT([doh!])
+             AC_MSG_ERROR([bad value "$enableval" for --enable-simulator]) ;;
+      esac
+    ]
+  )
+  AC_MSG_RESULT([${x_ac_simulator=no}])
+  if test "$x_ac_simulator" = yes; then
+    AC_DEFINE(SLURM_SIMULATOR, 1, [Define to 1 if running slurm simulator])
+    AC_MSG_NOTICE([Creating slurm_sim.h])
+    chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
+    ${srcdir}/contribs/simulator/slurm_sim.pl
+  fi
+
+  AC_MSG_CHECKING([whether for debugger partial task attach support])
   if test "$x_ac_partial_attach" != "no"; then
     AC_DEFINE(DEBUGGER_PARTIAL_ATTACH, 1, [Define to 1 for debugger partial task attach support.])
   fi
@@ -156,23 +178,5 @@ AC_DEFUN([X_AC_DEBUG], [
   else
     AC_MSG_RESULT([no])
   fi
-
-  AC_MSG_CHECKING([whether to enable slurm simulator])
-  AC_ARG_ENABLE(
-    [simulator],
-    AS_HELP_STRING(--enable-simulator, enable slurm simulator),
-    [ case "$enableval" in
-        yes) x_ac_simulator=yes ;;
-         no) x_ac_simulator=no ;;
-          *) AC_MSG_RESULT([doh!])
-             AC_MSG_ERROR([bad value "$enableval" for --enable-simulator]) ;;
-      esac
-    ]
-  )
-  if test "$x_ac_simulator" = yes; then
-    AC_DEFINE(SLURM_SIMULATOR, 1, [Define to 1 if running slurm simulator])
-  fi
-  AC_MSG_RESULT([${x_ac_simulator=no}])
-
   ]
 )

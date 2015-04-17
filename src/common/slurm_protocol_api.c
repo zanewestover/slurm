@@ -3796,6 +3796,7 @@ int slurm_send_recv_controller_msg(slurm_msg_t *req, slurm_msg_t *resp)
 	bool backup_controller_flag;
 	uint16_t slurmctld_timeout;
 	slurm_addr_t ctrl_addr;
+	struct timespec waiting;
 
 	/* Just in case the caller didn't initialize his slurm_msg_t, and
 	 * since we KNOW that we are only sending to one node (the controller),
@@ -3839,7 +3840,9 @@ int slurm_send_recv_controller_msg(slurm_msg_t *req, slurm_msg_t *resp)
 			debug("Neither primary nor backup controller "
 			      "responding, sleep and retry");
 			slurm_free_return_code_msg(resp->data);
-			sleep(30);
+			waiting.tv_sec = 30;
+			waiting.tv_nsec = 0;
+			nanosleep(&waiting, 0);
 			if ((fd = slurm_open_controller_conn(&ctrl_addr))
 			    < 0) {
 				rc = -1;

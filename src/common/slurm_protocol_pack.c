@@ -673,6 +673,11 @@ static void _pack_ping_slurmd_resp(ping_slurmd_resp_msg_t *msg,
 static int _unpack_ping_slurmd_resp(ping_slurmd_resp_msg_t **msg_ptr,
 				    Buf buffer, uint16_t protocol_version);
 
+static void _pack_sim_job_msg(sim_job_msg_t *msg, Buf buffer);
+static void _pack_sim_helper_msg(sim_helper_msg_t *msg, Buf buffer);
+static int  _unpack_sim_job_msg(sim_job_msg_t **msg_ptr, Buf buffer);
+static int  _unpack_sim_helper_msg(sim_helper_msg_t **msg_ptr, Buf buffer);
+
 static void _pack_license_info_request_msg(license_info_request_msg_t *msg,
                                            Buf buffer,
                                            uint16_t protocol_version);
@@ -1062,6 +1067,12 @@ pack_msg(slurm_msg_t const *msg, Buf buffer)
 	case REQUEST_SIGNAL_JOB:
 		_pack_signal_job_msg((signal_job_msg_t *) msg->data, buffer,
 				     msg->protocol_version);
+		break;
+	case REQUEST_SIM_JOB:
+		_pack_sim_job_msg((sim_job_msg_t *)msg->data, buffer);
+		break;
+	case MESSAGE_SIM_HELPER_CYCLE:
+		_pack_sim_helper_msg((sim_helper_msg_t *)msg->data, buffer);
 		break;
 	case REQUEST_ABORT_JOB:
 	case REQUEST_KILL_PREEMPTED:
@@ -1688,6 +1699,12 @@ unpack_msg(slurm_msg_t * msg, Buf buffer)
 		rc = _unpack_signal_job_msg((signal_job_msg_t **)&(msg->data),
 					    buffer,
 					    msg->protocol_version);
+		break;
+	case REQUEST_SIM_JOB:
+		_unpack_sim_job_msg((sim_job_msg_t **)&msg->data, buffer);
+		break;
+	case MESSAGE_SIM_HELPER_CYCLE:
+		_unpack_sim_helper_msg((sim_helper_msg_t **)&msg->data, buffer);
 		break;
 	case REQUEST_ABORT_JOB:
 	case REQUEST_KILL_PREEMPTED:
@@ -4121,6 +4138,52 @@ unpack_job_step_create_request_msg(job_step_create_request_msg_t ** msg,
 unpack_error:
 	slurm_free_job_step_create_request_msg(tmp_ptr);
 	*msg = NULL;
+	return SLURM_ERROR;
+}
+
+static void _pack_sim_helper_msg(sim_helper_msg_t *msg, Buf buffer)
+{
+	pack32(msg->total_jobs_ended, buffer );
+}
+static int _unpack_sim_helper_msg(sim_helper_msg_t **msg_ptr, Buf buffer)
+{
+	sim_helper_msg_t * msg;
+	xassert (msg_ptr != NULL);
+
+	msg = xmalloc(sizeof (sim_helper_msg_t));
+	*msg_ptr = msg ;
+
+	safe_unpack32(&msg->total_jobs_ended, buffer);
+	return SLURM_SUCCESS;
+
+unpack_error:
+	*msg_ptr = NULL;
+	slurm_free_sim_helper_msg(msg);
+	return SLURM_ERROR;
+}
+
+static void _pack_sim_job_msg(sim_job_msg_t *msg, Buf buffer)
+{
+	xassert(msg != NULL);
+
+	pack32(msg->duration, buffer);
+	pack32(msg->job_id,  buffer);
+}
+static int  _unpack_sim_job_msg(sim_job_msg_t **msg_ptr, Buf buffer)
+{
+	sim_job_msg_t * msg;
+	xassert(msg_ptr != NULL);
+
+	msg = xmalloc (sizeof(sim_job_msg_t));
+	*msg_ptr = msg ;
+
+	safe_unpack32(&msg->duration, buffer);
+	safe_unpack32(&msg->job_id, buffer);
+	return SLURM_SUCCESS;
+
+unpack_error:
+	*msg_ptr = NULL;
+	slurm_free_sim_job_msg(msg);
 	return SLURM_ERROR;
 }
 

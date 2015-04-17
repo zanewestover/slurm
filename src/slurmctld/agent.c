@@ -368,6 +368,7 @@ void *agent(void *args)
 	if (spawn_retry_agent)
 		agent_retry(RPC_RETRY_INTERVAL, true);
 
+	pthread_exit(NULL);
 	return NULL;
 }
 
@@ -571,7 +572,11 @@ static void *_wdog(void *args)
 		thd_comp.retry_cnt   = 0;   /* assume no required retries */
 		thd_comp.now         = time(NULL);
 
+#ifndef SLURM_SIMULATOR
 		usleep(usec);
+#else
+		sleep(1);
+#endif
 		usec = MIN((usec * 2), 1000000);
 
 		slurm_mutex_lock(&agent_ptr->thread_mutex);
@@ -616,7 +621,8 @@ static void *_wdog(void *args)
 		debug2("agent maximum delay %d seconds", thd_comp.max_delay);
 
 	slurm_mutex_unlock(&agent_ptr->thread_mutex);
-	return (void *) NULL;
+	pthread_exit(NULL);
+	return NULL;
 }
 
 static void _notify_slurmctld_jobs(agent_info_t *agent_ptr)
@@ -1053,6 +1059,7 @@ cleanup:
 	(*threads_active_ptr)--;
 	pthread_cond_signal(thread_cond_ptr);
 	slurm_mutex_unlock(thread_mutex_ptr);
+	pthread_exit(NULL);
 	return (void *) NULL;
 }
 
