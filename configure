@@ -22717,6 +22717,8 @@ $as_echo "doh!" >&6; }
       esac
 
 
+
+
 fi
 
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: ${x_ac_simulator=no}" >&5
@@ -22724,6 +22726,9 @@ $as_echo "${x_ac_simulator=no}" >&6; }
   if test "$x_ac_simulator" = yes; then
 
 $as_echo "#define SLURM_SIMULATOR 1" >>confdefs.h
+
+
+$as_echo "#define HAVE_FRONT_END 1" >>confdefs.h
 
     { $as_echo "$as_me:${as_lineno-$LINENO}: Creating slurm_sim.h" >&5
 $as_echo "$as_me: Creating slurm_sim.h" >&6;}

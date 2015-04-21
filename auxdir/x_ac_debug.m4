@@ -124,10 +124,13 @@ AC_DEFUN([X_AC_DEBUG], [
              AC_MSG_ERROR([bad value "$enableval" for --enable-simulator]) ;;
       esac
     ]
+
+
   )
   AC_MSG_RESULT([${x_ac_simulator=no}])
   if test "$x_ac_simulator" = yes; then
     AC_DEFINE(SLURM_SIMULATOR, 1, [Define to 1 if running slurm simulator])
+    AC_DEFINE(HAVE_FRONT_END,    1, [Define to 1 if running slurmd on front-end only])
     AC_MSG_NOTICE([Creating slurm_sim.h])
     chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
     ${srcdir}/contribs/simulator/slurm_sim.pl
