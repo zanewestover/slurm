@@ -22729,8 +22729,6 @@ $as_echo "#define SLURM_SIMULATOR 1" >>confdefs.h
 $as_echo "$as_me: Creating slurm_sim.h" >&6;}
     chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
     ${srcdir}/contribs/simulator/slurm_sim.pl
-    { $as_echo "$as_me:${as_lineno-$LINENO}: RAN ${ac_srcdir} X ${srcdir} Y ${ac_abs_top_builddir}" >&5
-$as_echo "$as_me: RAN ${ac_srcdir} X ${srcdir} Y ${ac_abs_top_builddir}" >&6;}
   fi
 
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether for debugger partial task attach support" >&5

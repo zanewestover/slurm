@@ -1,13 +1,17 @@
 #
 # Makefile for Slurm workload simulator package
 #
+# libslurm_sim version information :
+current = $(SLURM_API_CURRENT)
+age     = $(SLURM_API_AGE)
+rev     = $(SLURM_API_REVISION)
 
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
 
-AM_CPPFLAGS = -I$(top_srcdir)
+AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 
-bin_PROGRAMS = list_trace rsv_trace_builder trace_builder sim_ctlr sim_mgr update_trace
+sbin_PROGRAMS = list_trace rsv_trace_builder sim_ctlr sim_mgr trace_builder update_trace
 
 list_trace_SOURCES = list_trace.c sim_trace.h
 rsv_trace_builder_SOURCES = rsv_trace_builder.c sim_trace.h
@@ -25,17 +29,20 @@ sim_mgr_LDADD = $(convenience_libs)
 trace_builder_LDADD = $(convenience_libs)
 update_trace_LDADD = $(convenience_libs)
 
-list_trace_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
-rsv_trace_builder_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
-sim_ctlr_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
-sim_mgr_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
-trace_builder_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
-update_trace_LDFLAGS = -export-dynamic $(CMD_LDFLAGS) -ldl -lrt -lpthread -lhwloc
+CMD_FLAGS = -export-dynamic $(CMD_LDFLAGS) $(DL_LIBS) -lrt -lpthread $(HWLOC_LDFLAGS)
+list_trace_LDFLAGS = $(CMD_FLAGS)
+rsv_trace_builder_LDFLAGS = $(CMD_FLAGS)
+sim_ctlr_LDFLAGS = $(CMD_FLAGS)
+sim_mgr_LDFLAGS = $(CMD_FLAGS)
+trace_builder_LDFLAGS = $(CMD_FLAGS)
+update_trace_LDFLAGS = $(CMD_FLAGS)
 
-pkglib_LTLIBRARIES = libslurm_sim.la
+lib_LTLIBRARIES = libslurm_sim.la
 
 libslurm_sim_la_SOURCES = sim_lib.c comm_protocol.h slurm_sim.h
-libslurm_sim_la_LDFLAGS = $(SO_LDFLAGS) -ldl -lrt -lpthread -lhwloc
+libslurm_sim_la_LDFLAGS = $(LIB_LDFLAGS) \
+	$(DL_LIBS) -lrt -lpthread $(HWLOC_LDFLAGS) \
+        -version-info $(current):$(rev):$(age)
 
 force:
 $(convenience_libs) : force

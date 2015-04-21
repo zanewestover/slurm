@@ -331,6 +331,14 @@ Requires: slurm-perlapi
 %description slurmdb-direct
 Wrappers to write directly to the slurmdb
 
+%package simulator
+Summary: Workload simulator package for Slurm
+Group: Development/System
+Requires: slurm
+%description simulator
+Simulate execution of a workload at higher speed than real time in order to
+evaluate changes in scheduling parameters or system characteristics.
+
 %if %{slurm_with aix}
 %package aix
 Summary: Slurm interfaces to IBM AIX
@@ -495,6 +503,8 @@ test -f $RPM_BUILD_ROOT/%{_libdir}/libslurm.la	&&
 	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libslurm.la
 test -f $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.la &&
 	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.la
+test -f $RPM_BUILD_ROOT/%{_libdir}/libslurm_sim.la &&
+	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libslurm_sim.la
 
 # Delete unpackaged files:
 test -s $RPM_BUILD_ROOT/%{_perldir}/auto/Slurm/Slurm.bs         ||
@@ -507,6 +517,7 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libpmi.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/libpmi2.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/libslurm.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.a
+rm -f $RPM_BUILD_ROOT/%{_libdir}/libslurm_sim.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/*.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/*.la
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/job_submit_defaults.so
@@ -1020,6 +1031,17 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/slurm/checkpoint_blcr.so
 %{_mandir}/man1/srun_cr*
 %endif
+#############################################################################
+
+%files simulator
+%defattr(-,root,root)
+%{_sbindir}/list_trace
+%{_sbindir}/rsv_trace_builder
+%{_sbindir}/sim_ctlr
+%{_sbindir}/sim_mgr
+%{_sbindir}/trace_builder
+%{_sbindir}/update_trace
+%{_libdir}/libslurm_sim.la
 #############################################################################
 
 %pre
