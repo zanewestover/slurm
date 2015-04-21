@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <title>Slurm by SchedMD</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="inner">
+        <h1>Slurm</h1>
+        <h2>Slurm: A Highly Scalable Workload Manager</h2>
+        <a href="https://github.com/SchedMD/slurm" class="button"><small>View project on</small> GitHub</a>
+      </div>
+    </header>
+
+    <div id="content-wrapper">
+      <div class="inner clearfix">
+        <section id="main-content">
+          <h2>
+<a id="slurm-workload-manager" class="anchor" href="#slurm-workload-manager" aria-hidden="true"><span class="octicon octicon-link"></span></a>Slurm Workload Manager</h2>
+
+<p>This is the Slurm Workload Manager. Slurm
+is an open-source cluster resource management and job scheduling system
+that strives to be simple, scalable, portable, fault-tolerant, and
+interconnect agnostic. Slurm currently has been tested only under Linux.</p>
+
+<p>As a cluster resource manager, Slurm provides three key functions. First,
+it allocates exclusive and/or non-exclusive access to resources
+(compute nodes) to users for some duration of time so they can perform
+work. Second, it provides a framework for starting, executing, and
+monitoring work (normally a parallel job) on the set of allocated
+nodes. Finally, it arbitrates conflicting requests for resources by
+managing a queue of pending work.</p>
+
+<p>Slurm is provided "as is" and with no warranty. This software is
+distributed under the GNU General Public License, please see the files
+COPYING, DISCLAIMER, and LICENSE.OpenSSL for details.</p>
+
+<p>This README presents an introduction to compiling, installing, and
+using Slurm.</p>
+
+<h2>
+<a id="source-distribution-hierarchy" class="anchor" href="#source-distribution-hierarchy" aria-hidden="true"><span class="octicon octicon-link"></span></a>SOURCE DISTRIBUTION HIERARCHY</h2>
+
+<p>The top-level distribution directory contains this README as well as
+other high-level documentation files, and the scripts used to configure
+and build Slurm (see INSTALL). Subdirectories contain the source-code
+for Slurm as well as a DejaGNU test suite and further documentation. A
+quick description of the subdirectories of the Slurm distribution follows:</p>
+
+<p>src/        [ Slurm source ]
+     Slurm source code is further organized into self explanatory
+     subdirectories such as src/api, src/slurmctld, etc.</p>
+
+<p>doc/        [ Slurm documentation ]
+     The documentation directory contains some latex, html, and ascii
+     text papers, READMEs, and guides. Manual pages for the Slurm
+     commands and configuration files are also under the doc/ directory.</p>
+
+<p>etc/        [ Slurm configuration ]
+     The etc/ directory contains a sample config file, as well as
+     some scripts useful for running Slurm.</p>
+
+<p>slurm/      [ Slurm include files ]
+     This directory contains installed include files, such as slurm.h
+     and slurm_errno.h, needed for compiling against the Slurm API.</p>
+
+<p>testsuite/  [ Slurm test suite ]
+     The testsuite directory contains the framework for a set of
+     DejaGNU and "make check" type tests for Slurm components.
+     There is also an extensive collection of Expect scripts.</p>
+
+<p>auxdir/     [ autotools directory ]
+     Directory for autotools scripts and files used to configure and
+     build Slurm</p>
+
+<p>contribs/   [ helpful tools outside of Slurm proper ]
+     Directory for anything that is outside of slurm proper such as a
+     different api or such.  To have this build you need to do a
+     make contrib/install-contrib.</p>
+
+<h2>
+<a id="compiling-and-installing-the-distribution" class="anchor" href="#compiling-and-installing-the-distribution" aria-hidden="true"><span class="octicon octicon-link"></span></a>COMPILING AND INSTALLING THE DISTRIBUTION</h2>
+
+<p>Please see the instructions at
+  <a href="http://slurm.schedmd.com/quickstart_admin.html">http://slurm.schedmd.com/quickstart_admin.html</a></p>
+
+<p>Extensive documentation is available from our home page at
+  <a href="http://slurm.schedmd.com/">http://slurm.schedmd.com/</a></p>
+
+<h2>
+<a id="problems" class="anchor" href="#problems" aria-hidden="true"><span class="octicon octicon-link"></span></a>PROBLEMS</h2>
+
+<p>If you experience problems compiling, installing, or running Slurm, see
+   <a href="http://slurm.schedmd.com/help.html">http://slurm.schedmd.com/help.html</a></p>
+        </section>
+
+        <aside id="sidebar">
+          <a href="https://github.com/SchedMD/slurm/zipball/master" class="button">
+            <small>Download</small>
+            .zip file
+          </a>
+          <a href="https://github.com/SchedMD/slurm/tarball/master" class="button">
+            <small>Download</small>
+            .tar.gz file
+          </a>
+
+          <p class="repo-owner"><a href="https://github.com/SchedMD/slurm"></a> is maintained by <a href="https://github.com/SchedMD">SchedMD</a>.</p>
+
+          <p>This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
+        </aside>
+      </div>
+    </div>
+
+            <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-47927131-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
