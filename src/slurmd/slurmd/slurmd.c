@@ -109,6 +109,10 @@
 #include "src/slurmd/slurmd/slurmd.h"
 #include "src/slurmd/slurmd/slurmd_plugstack.h"
 
+#ifdef SLURM_SIMULATOR
+#include "src/slurmd/slurmd/sim_events.h"
+#endif
+
 #define GETOPT_ARGS	"cCd:Df:hL:Mn:N:vV"
 
 #ifndef MAXHOSTNAMELEN
@@ -203,7 +207,7 @@ volatile simulator_event_t *head_simulator_event;
 volatile simulator_event_t *head_sim_completed_jobs;
 int total_sim_events = 0;
 
-+pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t simulator_mutex  = PTHREAD_MUTEX_INITIALIZER;
 static int  _send_complete_batch_script_msg(uint32_t jobid, int err,
 					    int status);
 static int  _send_sim_helper_cycle_msg(uint32_t jobs_count);

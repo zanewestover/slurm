@@ -9,6 +9,8 @@ rev     = $(SLURM_API_REVISION)
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
 
+EXTRA_DIST = README
+
 AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 
 sbin_PROGRAMS = list_trace rsv_trace_builder sim_ctlr sim_mgr trace_builder update_trace

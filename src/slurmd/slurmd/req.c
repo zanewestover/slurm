@@ -92,6 +92,10 @@
 #include "src/slurmd/common/slurmstepd_init.h"
 #include "src/slurmd/common/task_plugin.h"
 
+#ifdef SLURM_SIMULATOR
+#include "src/slurmd/slurmd/sim_events.h"
+#endif
+
 #define _LIMIT_INFO 0
 
 #define RETRY_DELAY 15		/* retry every 15 seconds */
@@ -262,7 +266,7 @@ simulator_event_info_t *head_simulator_event_info;
 static int  _rpc_sim_job(slurm_msg_t *msg);
 static int  _simulator_add_future_event(batch_job_launch_msg_t *req);
 static void _simulator_rpc_batch_job(slurm_msg_t *msg);
-static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
+static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg);
 #endif
 
 void
@@ -5805,16 +5809,12 @@ static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 		req.job_id      = req_kill->job_id;
 		req.return_code = rc;
 		req.node_name   = node_name;
-		if (switch_g_alloc_node_info(&req.switch_nodeinfo))
-			error("switch_g_alloc_node_info: %m");
 
 		msg.msg_type    = MESSAGE_EPILOG_COMPLETE;
 		msg.data        = &req;
 
 		/* Let wait for an answer for simulation syncronization */
 		slurm_send_recv_controller_rc_msg(&msg, &rc);
-
-		switch_g_free_node_info(&req.switch_nodeinfo);
 	//}
 	hostlist_destroy(hl);
 	free(event_sim);
