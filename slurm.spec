@@ -496,9 +496,6 @@ install -D -m755 etc/slurm.epilog.clean ${RPM_BUILD_ROOT}%{_sysconfdir}/slurm.ep
 install -D -m755 contribs/sgather/sgather ${RPM_BUILD_ROOT}%{_bindir}/sgather
 install -D -m755 contribs/sjstat ${RPM_BUILD_ROOT}%{_bindir}/sjstat
 
-install -D -m755 contribs/simulator/exec_sim.pl ${RPM_BUILD_ROOT}%{_sbindir}/exec_sim.pl
-install -D -m755 contribs/simulator/exec_slurmctld.pl ${RPM_BUILD_ROOT}%{_sbindir}/exec_slurmctld.pl
-install -D -m755 contribs/simulator/exec_slurmd.pl ${RPM_BUILD_ROOT}%{_sbindir}/exec_slurmd.pl
 test -f contribs/simulator/sim_sbatch	&&
 	install -D -m755 contribs/simulator/sim_sbatch ${RPM_BUILD_ROOT}%{_bindir}/sim_sbatch
 

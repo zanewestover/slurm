@@ -164,7 +164,7 @@ am__uninstall_files_from_dir = { \
          $(am__cd) "$$dir" && rm -f $$files; }; \
   }
 am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(sbindir)" \
-	"$(DESTDIR)$(bindir)"
+	"$(DESTDIR)$(bindir)" "$(DESTDIR)$(sbindir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libslurm_sim_la_LIBADD =
 am_libslurm_sim_la_OBJECTS = sim_lib.lo
@@ -215,7 +215,7 @@ update_trace_DEPENDENCIES = $(convenience_libs)
 update_trace_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(update_trace_LDFLAGS) $(LDFLAGS) -o $@
-SCRIPTS = $(bin_SCRIPTS)
+SCRIPTS = $(bin_SCRIPTS) $(sbin_SCRIPTS)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -534,12 +534,17 @@ age = $(SLURM_API_AGE)
 rev = $(SLURM_API_REVISION)
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
-EXTRA_DIST = README	\
+EXTRA_DIST = README
+
+# SCRIPTS for bin
+bin_SCRIPTS = sim_sbatch
+
+# SCRIPTS for sbin
+sbin_SCRIPTS = \
 	exec_sim.pl	\
 	exec_slurmctld.sh \
 	exec_slurmd.sh
 
-bin_SCRIPTS = sim_sbatch
 AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 list_trace_SOURCES = list_trace.c sim_trace.h
 rsv_trace_builder_SOURCES = rsv_trace_builder.c sim_trace.h
@@ -840,7 +845,7 @@ check-am: all-am
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS)
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(bindir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(sbindir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
 install: install-am
@@ -904,7 +909,7 @@ install-dvi: install-dvi-am
 install-dvi-am:
 
 install-exec-am: install-binSCRIPTS install-libLTLIBRARIES \
-	install-sbinPROGRAMS
+	install-sbinPROGRAMS install-sbinSCRIPTS
 
 install-html: install-html-am
 
@@ -945,7 +950,7 @@ ps: ps-am
 ps-am:
 
 uninstall-am: uninstall-binSCRIPTS uninstall-libLTLIBRARIES \
-	uninstall-sbinPROGRAMS
+	uninstall-sbinPROGRAMS uninstall-sbinSCRIPTS
 
 .MAKE: install-am install-strip
 
@@ -958,12 +963,13 @@ uninstall-am: uninstall-binSCRIPTS uninstall-libLTLIBRARIES \
 	install-dvi-am install-exec install-exec-am install-html \
 	install-html-am install-info install-info-am \
 	install-libLTLIBRARIES install-man install-pdf install-pdf-am \
-	install-ps install-ps-am install-sbinPROGRAMS install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags tags-am uninstall uninstall-am uninstall-binSCRIPTS \
-	uninstall-libLTLIBRARIES uninstall-sbinPROGRAMS
+	install-ps install-ps-am install-sbinPROGRAMS \
+	install-sbinSCRIPTS install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am uninstall \
+	uninstall-am uninstall-binSCRIPTS uninstall-libLTLIBRARIES \
+	uninstall-sbinPROGRAMS uninstall-sbinSCRIPTS
 
 
 install-binSCRIPTS: $(bin_SCRIPTS)
@@ -979,6 +985,21 @@ uninstall-binSCRIPTS:
 	@list='$(bin_SCRIPTS)'; for p in $$list; do \
 	  echo " rm -f '$(DESTDIR)$(bindir)/$$p'"; \
 	  rm -f "$(DESTDIR)$(bindir)/$$p"; \
+	done
+
+install-sbinSCRIPTS: $(sbin_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	test -z "$(DESTDIR)$(sbindir)" || $(mkdir_p) "$(DESTDIR)$(sbindir)"
+	@list='$(sbin_SCRIPTS)'; for p in $$list; do \
+	   cp $(top_srcdir)/contribs/simulator/$$p $(DESTDIR)$(sbindir)/$$p; \
+	   chmod 755 $(DESTDIR)$(sbindir)/$$p;\
+	done
+
+uninstall-sbinSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(bin_SCRIPTS)'; for p in $$list; do \
+	  echo " rm -f '$(DESTDIR)$(sbindir)/$$p'"; \
+	  rm -f "$(DESTDIR)$(sbindir)/$$p"; \
 	done
 
 force:

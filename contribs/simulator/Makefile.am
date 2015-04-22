@@ -9,11 +9,9 @@ rev     = $(SLURM_API_REVISION)
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
 
-EXTRA_DIST = README	\
-	exec_sim.pl	\
-	exec_slurmctld.sh \
-	exec_slurmd.sh
+EXTRA_DIST = README
 
+# SCRIPTS for bin
 bin_SCRIPTS = sim_sbatch
 
 install-binSCRIPTS: $(bin_SCRIPTS)
@@ -30,6 +28,28 @@ uninstall-binSCRIPTS:
 	  echo " rm -f '$(DESTDIR)$(bindir)/$$p'"; \
 	  rm -f "$(DESTDIR)$(bindir)/$$p"; \
 	done
+
+# SCRIPTS for sbin
+sbin_SCRIPTS =	\
+	exec_sim.pl	\
+	exec_slurmctld.sh \
+	exec_slurmd.sh
+
+install-sbinSCRIPTS: $(sbin_SCRIPTS)
+	@$(NORMAL_INSTALL)
+	test -z "$(DESTDIR)$(sbindir)" || $(mkdir_p) "$(DESTDIR)$(sbindir)"
+	@list='$(sbin_SCRIPTS)'; for p in $$list; do \
+	   cp $(top_srcdir)/contribs/simulator/$$p $(DESTDIR)$(sbindir)/$$p; \
+	   chmod 755 $(DESTDIR)$(sbindir)/$$p;\
+	done
+
+uninstall-sbinSCRIPTS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(bin_SCRIPTS)'; for p in $$list; do \
+	  echo " rm -f '$(DESTDIR)$(sbindir)/$$p'"; \
+	  rm -f "$(DESTDIR)$(sbindir)/$$p"; \
+	done
+
 
 AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 
