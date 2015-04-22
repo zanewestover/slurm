@@ -496,9 +496,6 @@ install -D -m755 etc/slurm.epilog.clean ${RPM_BUILD_ROOT}%{_sysconfdir}/slurm.ep
 install -D -m755 contribs/sgather/sgather ${RPM_BUILD_ROOT}%{_bindir}/sgather
 install -D -m755 contribs/sjstat ${RPM_BUILD_ROOT}%{_bindir}/sjstat
 
-test -f contribs/simulator/sim_sbatch	&&
-	install -D -m755 contribs/simulator/sim_sbatch ${RPM_BUILD_ROOT}%{_bindir}/sim_sbatch
-
 # Correct some file permissions
 test -f $RPM_BUILD_ROOT/%{_libdir}/libpmi.la	&&
 	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libpmi.la
@@ -1041,8 +1038,7 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 #############################################################################
 
-%files simulator
-%files -f simulator.files
+%files -f simulator.files simulator
 %defattr(-,root,root)
 %{_sbindir}/exec_sim.pl
 %{_sbindir}/exec_slurmctld.sh
