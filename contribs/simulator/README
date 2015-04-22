@@ -50,10 +50,17 @@ Build instructions:
    Get a copy of the Slurm database from the system you want to emulate:
    SIM_DIR/bin/sacctmgr -i dump cluster=BASE_NAME file=/tmp/save
 
-   Move the file to your desktop used for testing
+   Move the file to your desktop used for testing.
 
    Load the data into your local database:
    SIM_DIR/bin/sacctmgr -i load /tmp/save
+
+   Create a file containing user IDs information. The format of the file should
+   be "<user_name>:<user_id>" one per line. The file should be created in
+   SIM_DIR/etc/users.sim. For example:
+   $ cat SIM_DIR/etc/users.sim
+   alan:1000
+   brenda:1001
 
 8. Validate that the slurmctld and slurmd daemons can be executed. These
    command lines will start the daemons in the foreground and send output to

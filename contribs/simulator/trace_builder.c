@@ -276,9 +276,9 @@ int main(int argc, char *argv[])
 		total_cpus = 40;
 	}
 
-	userfile = open("users.sim", O_RDONLY);
+	userfile = open("../etc/users.sim", O_RDONLY);
 	if (userfile < 0) {
-		printf("users.sim file not found\n");
+		printf("../etc/users.sim file not found\n");
 		return -1;
 	}
 

@@ -9,7 +9,7 @@ print LOG
 /*
 ########################################################################
 #  THIS FILE IS AUTOMATICALLY CREATED BY slurm_sim.pl when             #
-#	Slurm configure is executed with "--enable-simulator"	       #
+#	Slurm configure is executed with --enable-simulator	       #
 #  								       #
 #    IPC names are based on username compiling Slurm		       #
 #    sim_mgr should be executed with same uid			       #
@@ -33,18 +33,17 @@ print LOG
 #define SIM_MICROSECONDS_OFFSET 4
 
 /* This sets a MAX_THREAD upper limit to 64 */
-#define SIM_SLEEP_ARRAY_MAP_OFFSET	8
-#define SIM_THREAD_EXIT_MAP_OFFSET	16 
-#define SIM_THREAD_NEW_MAP_OFFSET	24 
-#define SIM_THREADS_COUNT_OFFSET	32
-#define SIM_PROTO_THREADS_OFFSET	36
-#define SIM_FAST_THREADS_OFFSET	 	40
-#define SIM_PTHREAD_CREATE_COUNTER	44
-#define SIM_PTHREAD_EXIT_COUNTER	48
-#define SIM_PTHREAD_SLURMCTL_PID	52
-#define SIM_PTHREAD_SLURMD_PID		56
-
-#define SIM_SYNC_ARRAY_OFFSET		60
+#define SIM_SLEEP_ARRAY_MAP_OFFSET    8
+#define SIM_THREAD_EXIT_MAP_OFFSET    16
+#define SIM_THREAD_NEW_MAP_OFFSET     24
+#define SIM_THREADS_COUNT_OFFSET      32
+#define SIM_PROTO_THREADS_OFFSET      36
+#define SIM_FAST_THREADS_OFFSET       40
+#define SIM_PTHREAD_CREATE_COUNTER    44
+#define SIM_PTHREAD_EXIT_COUNTER      48
+#define SIM_PTHREAD_SLURMCTL_PID      52
+#define SIM_PTHREAD_SLURMD_PID        56
+#define SIM_SYNC_ARRAY_OFFSET         60
 
 typedef struct thread_data {
 		pthread_t ptid;

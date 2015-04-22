@@ -80,15 +80,15 @@ int (*real_pthread_create)(pthread_t *, const pthread_attr_t *, void *(*start) (
 void (*real_pthread_exit)(void *retval);
 int (*real_pthread_join)(pthread_t thread, void **retval);
 
-int get_new_thread_id();
+int get_new_thread_id(pthread_t *thread);
 int set_exit_map_array(int pos);
 int set_new_thread(int pos);
-int get_thread_id();
+int get_thread_id(void);
 
 /* Pointer to shared memory initialized by sim_mgr */
 void *timemgr_data;
 
-sem_t *global_sem;
+sem_t *global_sem = NULL;
 sem_t *thread_sem[MAX_THREADS];
 sem_t *thread_sem_back[MAX_THREADS];
 
@@ -632,7 +632,8 @@ int get_new_thread_id(pthread_t *thread)
 }
 
 /* We need to know which threads are from slurmctld and which from slurmd */
-int register_program() {
+static int _register_program(void)
+{
 
 	int fproc;
 	char fname[100];
@@ -644,7 +645,6 @@ int register_program() {
 	printf("Register: opening file %s\n", fname);
 
 	fproc = open(fname, O_RDONLY);
-
 	if (fproc < 0) {
 		printf("We got a problem reading proc file for process %d\n",
 		       getpid());
@@ -688,6 +688,7 @@ int register_program() {
 int init_semaphores(void)
 {
 	char sem_name[100];
+	struct timespec ts;
 
 	printf("Initializing semaphores...\n");
 
@@ -699,9 +700,9 @@ int init_semaphores(void)
 
 	/* Slurmctld and slurmd main threads are registered during initialization */
 	main_thread = pthread_self();
-
-	sem_wait(global_sem);
-
+	ts.tv_sec = 5;
+	ts.tv_nsec = 0;
+	sem_timedwait(global_sem, &ts);
 	main_thread = pthread_self();
 
 	main_thread_id = get_new_thread_id(&main_thread);
@@ -736,23 +737,32 @@ int init_semaphores(void)
 	return 0;
 }
 
-/* Slurmctld and slurmd do not really build shared memory but they use that one built by sim_mgr */
-int building_shared_memory() {
-
+/* Slurmctld and slurmd do not really build shared memory, but they use that
+ * one built by sim_mgr */
+int building_shared_memory(void)
+{
 	int fd;
 
+//shm_unlink(SLURM_SIM_SHM);
 	fd = shm_open(SLURM_SIM_SHM, O_RDWR, S_IRUSR | S_IWUSR);
+	if ((fd < 0) && (errno == ENOENT)) {
+		printf("%s: Creating new shmem file %s\n",
+		       __func__, SLURM_SIM_SHM);
+		fd = shm_open(SLURM_SIM_SHM, O_RDWR | O_CREAT,
+			      S_IRUSR | S_IWUSR);
+
+	}
 	if (fd < 0) {
-		printf("Error opening %s\n", SLURM_SIM_SHM);
+		printf("%s: Error opening %s: %m\n", __func__, SLURM_SIM_SHM);
 		return -1;
 	}
 
 	ftruncate(fd, 8192);
 
 	timemgr_data = mmap(0, 8192, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
 	if (!timemgr_data) {
-		printf("mmaping %s file can not be done\n", SLURM_SIM_SHM);
+		printf("%s: mmaping %s file can not be done\n",
+		       __func__, SLURM_SIM_SHM);
 		return -1;
 	}
 
@@ -772,7 +782,7 @@ int building_shared_memory() {
 	slurmd_pid = timemgr_data + SIM_PTHREAD_SLURMD_PID;
 
 	if ((slurmctl_pid[0] == 0) || (slurmd_pid[0] == 0)) {
-		register_program();
+		_register_program();
 
 		if (init_semaphores() < 0) {
 			printf("semaphores initialization failed\n");
@@ -795,9 +805,9 @@ int getting_simulation_users(void)
 	if (sim_users_list)
 		return 0;
 
-	fich = open("users.sim", O_RDONLY);
+	fich = open("../etc/users.sim", O_RDONLY);
 	if (fich < 0) {
-		printf("ERROR: no users.sim available\n");
+		printf("ERROR: no ../etc/users.sim available\n");
 		return -1;
 	}
 
@@ -899,9 +909,9 @@ void __attribute__ ((constructor)) sim_init(void)
 
 	/* slurmctld and slurmd got all the wrappers but some other programs
 	 * like sinfo or scontrol just time related wrappers */
-	if (slurmctl_pid[0] == getpid()||  slurmd_pid[0] == getpid()) {
-		printf("This slurm program is not the controller nor a slurmd "
-		       "(%d)(controller: %d)(daemon: %d)\n",
+	if (slurmctl_pid[0] == getpid() || slurmd_pid[0] == getpid()) {
+		printf("This slurm program is the slurmctld or slurmd "
+		       "(my_pid: %d)(slurmctld: %d)(slurmd: %d)\n",
 		       getpid(), slurmctl_pid[0], slurmd_pid[0]);
 		if (real_sleep == NULL) {
 			printf("Looking for real sleep function\n");
@@ -932,7 +942,7 @@ void __attribute__ ((constructor)) sim_init(void)
 		}
 	}
 
-	if (slurmctl_pid[0] == getpid()|| slurmd_pid[0] == getpid()) {
+	if (slurmctl_pid[0] == getpid() || slurmd_pid[0] == getpid()) {
 		if (real_pthread_create == NULL) {
 			printf("Looking for real pthread_create function\n");
 			handle = dlopen(LIBPTHREAD_PATH, RTLD_LOCAL | RTLD_LAZY);
