@@ -9,7 +9,11 @@ rev     = $(SLURM_API_REVISION)
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
 
-EXTRA_DIST = README
+EXTRA_DIST = README	\
+	exec_sim.pl	\
+	exec_slurmctld.sh \
+	exec_slurmd.sh	\
+	sim_batch
 
 AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 

@@ -22730,11 +22730,11 @@ $as_echo "#define SLURM_SIMULATOR 1" >>confdefs.h
 
 $as_echo "#define HAVE_FRONT_END 1" >>confdefs.h
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: Creating slurm_sim.h" >&5
-$as_echo "$as_me: Creating slurm_sim.h" >&6;}
-    chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
-    ${srcdir}/contribs/simulator/slurm_sim.pl
   fi
+  { $as_echo "$as_me:${as_lineno-$LINENO}: Creating slurm_sim.h" >&5
+$as_echo "$as_me: Creating slurm_sim.h" >&6;}
+  chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
+  ${srcdir}/contribs/simulator/slurm_sim.pl $prefix $srcdir
 
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether for debugger partial task attach support" >&5
 $as_echo_n "checking whether for debugger partial task attach support... " >&6; }

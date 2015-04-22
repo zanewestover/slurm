@@ -1,8 +1,20 @@
 #!/usr/bin/perl
 
 my $USER=$ENV{"USER"};
+my $PREFIX=$ARGV[0];
+my $SRCDIR=$ARGV[1];
 
-open LOG,">slurm_sim.h";
+open SBATCH,">$SRCDIR/contribs/simulator/sim_sbatch";
+print SBATCH
+"#!/bin/bash
+PARAMS=`echo $@`
+DATE=`date +%s`
+# Just for debug
+echo 'LD_LIBRARY_PATH=$PREFIX/lib LD_PRELOAD=libslurm_sim.so $PREFIX/bin/sbatch' \$PARAMS > $PREFIX/tmp/sim_sbatch-\$DATE
+RES=`LD_LIBRARY_PATH=$PREFIX/lib LD_PRELOAD=libslurm_sim.so $PREFIX/bin/sbatch \$PARAMS > $PREFIX/tmp/sim_sbatch.out`
+";
+
+open LOG,">$SRCDIR/contribs/simulator/slurm_sim.h";
 
 print LOG
 "
@@ -63,6 +75,4 @@ typedef struct thread_data {
 
 /* Each thread needs a sleep count value and a sem_t variable */
 #define THREAD_DATA_SIZE    (sizeof(thread_data_t))
-
 ";
-

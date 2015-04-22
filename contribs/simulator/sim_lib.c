@@ -80,7 +80,7 @@ int (*real_pthread_create)(pthread_t *, const pthread_attr_t *, void *(*start) (
 void (*real_pthread_exit)(void *retval);
 int (*real_pthread_join)(pthread_t thread, void **retval);
 
-int get_new_thread_id(pthread_t *thread);
+int get_new_thread_id(void);
 int set_exit_map_array(int pos);
 int set_new_thread(int pos);
 int get_thread_id(void);
@@ -582,7 +582,7 @@ int get_thread_id(void)
 }
 
 /* This should be called with global_sem protection */
-int get_new_thread_id(pthread_t *thread)
+int get_new_thread_id(void)
 {
 	long long int map;
 
@@ -705,7 +705,7 @@ int init_semaphores(void)
 	sem_timedwait(global_sem, &ts);
 	main_thread = pthread_self();
 
-	main_thread_id = get_new_thread_id(&main_thread);
+	main_thread_id = get_new_thread_id();
 	threads_data[main_thread_id].sleep = -1;
 	threads_data[main_thread_id].pid  = getpid();
 

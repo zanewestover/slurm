@@ -85,7 +85,7 @@ sbin_PROGRAMS = list_trace$(EXEEXT) rsv_trace_builder$(EXEEXT) \
 	update_trace$(EXEEXT)
 subdir = contribs/simulator
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
-	$(top_srcdir)/auxdir/depcomp
+	$(top_srcdir)/auxdir/depcomp README
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/ax_pthread.m4 \
@@ -531,6 +531,12 @@ age = $(SLURM_API_AGE)
 rev = $(SLURM_API_REVISION)
 AUTOMAKE_OPTIONS = foreign
 CLEANFILES = core.*
+EXTRA_DIST = README	\
+	exec_sim.pl	\
+	exec_slurmctld.sh \
+	exec_slurmd.sh	\
+	sim_batch
+
 AM_CPPFLAGS = -I$(top_srcdir) $(HWLOC_CPPFLAGS)
 list_trace_SOURCES = list_trace.c sim_trace.h
 rsv_trace_builder_SOURCES = rsv_trace_builder.c sim_trace.h

@@ -131,10 +131,10 @@ AC_DEFUN([X_AC_DEBUG], [
   if test "$x_ac_simulator" = yes; then
     AC_DEFINE(SLURM_SIMULATOR, 1, [Define to 1 if running slurm simulator])
     AC_DEFINE(HAVE_FRONT_END,    1, [Define to 1 if running slurmd on front-end only])
-    AC_MSG_NOTICE([Creating slurm_sim.h])
-    chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
-    ${srcdir}/contribs/simulator/slurm_sim.pl
   fi
+  AC_MSG_NOTICE([Creating slurm_sim.h])
+  chmod 755 ${srcdir}/contribs/simulator/slurm_sim.pl
+  ${srcdir}/contribs/simulator/slurm_sim.pl $prefix $srcdir
 
   AC_MSG_CHECKING([whether for debugger partial task attach support])
   if test "$x_ac_partial_attach" != "no"; then
