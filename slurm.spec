@@ -1045,8 +1045,8 @@ rm -rf $RPM_BUILD_ROOT
 %files -f simulator.files
 %defattr(-,root,root)
 %{_sbindir}/exec_sim.pl
-%{_sbindir}/exec_slurmctld.pl
-%{_sbindir}/exec_slurmd.pl
+%{_sbindir}/exec_slurmctld.sh
+%{_sbindir}/exec_slurmd.sh
 %{_sbindir}/list_trace
 %{_sbindir}/rsv_trace_builder
 %{_sbindir}/sim_ctlr
