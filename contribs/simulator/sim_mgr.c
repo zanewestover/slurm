@@ -1,5 +1,5 @@
 /*****************************************************************************\
- *  sim_lib.c - simulated slurmctld
+ *  sim_mgr.c - simulated slurm manager program
  *****************************************************************************
  *  Copyright (C) 2011 BSC-CNS (Barcelona Supercomputing Center)
  *
@@ -142,7 +142,7 @@ char scontrol_bin[200];
 char *global_argv[10] = { NULL };
 char *global_envp[100];     /* FIXME: I do not like limited number of env values */
 
-void change_debug_level(int signum)
+static void _change_debug_leve(int signum)
 {
 	if (sim_mgr_debug_level > 0)
 		sim_mgr_debug_level = 0;
@@ -151,7 +151,7 @@ void change_debug_level(int signum)
 }
 
 /* Debugging */
-void dumping_shared_mem(int signum)
+static void _dumping_shared_mem(int signum)
 {
 	int i;
 	struct timeval t1;
@@ -177,7 +177,8 @@ void dumping_shared_mem(int signum)
 
 	for (i = 0; i < MAX_THREADS; i++) {
 		if (threads_data[i].wait_count > 0) {
-			printf("%d\t\t%d\t\t%016lx\t\t%d/%d/%d/%d\t\t\t%08ld\t%08ld\t%08ld\t%lld\n",
+			printf("%d\t\t%d\t\t%016lx\t\t%d/%d/%d/%d\t\t\t"
+				"%08ld\t%08ld\t%08ld\t%lld\n",
 				i, threads_data[i].pid,
 				threads_data[i].func_addr,
 				threads_data[i].sleep,
@@ -187,9 +188,11 @@ void dumping_shared_mem(int signum)
 				threads_data[i].creation,
 				threads_data[i].last_sleep, 
 				threads_data[i].last_wakeup,
-				threads_data[i].wait_time / threads_data[i].wait_count);
+				threads_data[i].wait_time /
+				threads_data[i].wait_count);
 		} else {
-			printf("%d\t\t%d\t\t%016lx\t\t%d/%d/%d/%d\t\t\t%08ld\t%08ld\t%08ld\t%lld\n",
+			printf("%d\t\t%d\t\t%016lx\t\t%d/%d/%d/%d\t\t\t"
+				"%08ld\t%08ld\t%08ld\t%lld\n",
 				i, threads_data[i].pid, 
 				threads_data[i].func_addr,
 				threads_data[i].sleep,
@@ -224,19 +227,19 @@ void dumping_shared_mem(int signum)
 	return;
 }
 
-int is_independent_thread(unsigned long *addr)
+static int _is_independent_thread(unsigned long *addr)
 {
-	int i = 0;
+	int i;
 
-	while (i < MAX_INDEPENDENT_THREADS) {
-		if (addr == independent_threads[i++])
+	for (i = 0; i < MAX_INDEPENDENT_THREADS; i++) {
+		if (addr == independent_threads[i])
 			return 1;
 	}
 
 	return 0;
 }
 
-int wait_thread_running(int i)
+static int _wait_thread_running(int i)
 {
 	struct timeval t1;
 
@@ -260,7 +263,8 @@ int wait_thread_running(int i)
 		sem_wait(global_sem);
 
 		gettimeofday(&l_tv, NULL); 
-		sim_mgr_debug(0, "[%ld-%ld] Releasing thread slots from exit array\n",
+		sim_mgr_debug(0,
+			      "[%ld-%ld] Releasing thread slots from exit array\n",
 			      l_tv.tv_sec, l_tv.tv_usec);
 		sim_mgr_debug(0, "[%016llx][%016llx]\n",
 			      sleep_map_array[0], thread_exit_array[0]);
@@ -268,7 +272,8 @@ int wait_thread_running(int i)
 		/* Let's release slots of finished threads */
 		RELEASE_SLOTS();
 
-		sim_mgr_debug(0, "[%016llx][%016llx]\n", sleep_map_array[0], thread_exit_array[0]);
+		sim_mgr_debug(0, "[%016llx][%016llx]\n",
+			      sleep_map_array[0], thread_exit_array[0]);
 
 		sem_post(global_sem);
 
@@ -279,10 +284,10 @@ int wait_thread_running(int i)
 
 		waitloops++;
 		if (waitloops >= 30000) {
-			printf("ERROR: Too much wait loops in wait_thread_running\n");
+			printf("ERROR: Too much wait loops in _wait_thread_running\n");
 			printf("sleep_map_array: %16llx\n", sleep_map_array[0]);
 			printf("thread_exit_array: %16llx\n", thread_exit_array[0]);
-			dumping_shared_mem(SIGSEGV);
+			_dumping_shared_mem(SIGSEGV);
 			pthread_exit(0);
 		}
 	}
@@ -307,7 +312,7 @@ int wait_thread_running(int i)
  *
  * This needs to be called with global_sem closed 
  */
-void checking_for_new_threads(void)
+static void _checking_for_new_threads(void)
 {
 	int new;
 
@@ -350,7 +355,7 @@ void checking_for_new_threads(void)
 				/* This check is for RPC threads. Does it make sense
 				 * for a new thread? Probably this is just true during
 				 * first simulation cycle */
-				if (is_independent_thread((unsigned long *)
+				if (_is_independent_thread((unsigned long *)
 							  threads_data[new].func_addr)) {
 					printf("Thread[%d] is NEW and a RPC thread\n",
 						new);
@@ -362,8 +367,8 @@ void checking_for_new_threads(void)
 						"sleeps\n", new);
 					sem_post(global_sem);
 					sim_mgr_debug(3,
-						"CALLING wait_thread_running_new\n");
-					wait_thread_running(new);
+						"CALLING _wait_thread_running_new\n");
+					_wait_thread_running(new);
 					sem_wait(global_sem);
 				}
 			}
@@ -393,7 +398,7 @@ void checking_for_new_threads(void)
 
 
 /* This is the main simulator function */
-static void *time_mgr(void *arg)
+static void *_time_mgr(void *arg)
 {
 	unsigned int *current_micro;
 	unsigned int *current_threads;
@@ -420,7 +425,7 @@ static void *time_mgr(void *arg)
 		"",
 		"test_command.cmd", (char *) 0 };
 
-	printf("INFO: Creating time_mgr thread\n");
+	printf("INFO: Creating _time_mgr thread\n");
 
 	current_sim = timemgr_data + SIM_SECONDS_OFFSET;
 	current_micro = timemgr_data + SIM_MICROSECONDS_OFFSET;
@@ -490,7 +495,7 @@ static void *time_mgr(void *arg)
 	while (1) { 	
 		/* Do we have to end simulation in this cycle? */
 		if (sim_end_point == current_sim[0]) {
-			dumping_shared_mem(SIGSEGV);
+			_dumping_shared_mem(SIGSEGV);
 		}
 #ifdef MONITOR
 		if (monitor_countdown == 0) {
@@ -520,18 +525,19 @@ static void *time_mgr(void *arg)
 		pthread_exit_counter[0] = 0;
 
 		for (i = 0; i < MAX_THREADS; i++) {
-			/* if this is Main slurmd thread or slot is not actived or this is a new thread*/
+			/* if this is Main slurmd thread or slot is not actived
+			 * or this is a new thread*/
 			if ((i == 0) || (!IS_ACTIVE_SLOT(i)) ||
 			    (threads_data[i].is_new))
 				continue;
 
 			/* Waiting for new threads to finish is good for determinsm */
-			checking_for_new_threads();
+			_checking_for_new_threads();
 
 			sim_mgr_debug(3, "Is thread %d running?\n", i);
 			sem_post(global_sem);
 			gettimeofday(&t1, NULL);
-			wait_thread_running(i);
+			_wait_thread_running(i);
 			sem_wait(global_sem);
 
 			gettimeofday(&t2, NULL);
@@ -634,7 +640,7 @@ static void *time_mgr(void *arg)
 		/* Main threads and threads created previously to this
 		 * simulation cycle have got a chance to execute. Let's wait
 		 * new threads to end before submiting new jobs */
-		checking_for_new_threads();
+		_checking_for_new_threads();
 
 		sem_post(global_sem);
 
@@ -675,11 +681,11 @@ static void *time_mgr(void *arg)
 			 * are submitted at the same time but it seems
 			 * to have an impact on determinism */
 			sem_wait(global_sem);
-			checking_for_new_threads();
+			_checking_for_new_threads();
 			sem_post(global_sem);
 
 #ifdef DEBUG
-			printf("time_mgr: current %u and next trace %ld\n",
+			printf("_time_mgr: current %u and next trace %ld\n",
 				*(current_sim), trace_head->submit);
 #endif
 			if (*(current_sim) >= trace_head->submit) {
@@ -800,7 +806,7 @@ static void *time_mgr(void *arg)
 		sem_wait(global_sem);
 
 		/* New jobs submitted create new threads */
-		checking_for_new_threads();
+		_checking_for_new_threads();
 
 		/* Now it is safe to decrement sleep field for sleeping threads */
 		for (i = 0; i < MAX_THREADS; i++) {
@@ -827,7 +833,7 @@ static void *time_mgr(void *arg)
 	return 0;
 }
 
-int insert_trace_record(job_trace_t *new)
+static int _insert_trace_record(job_trace_t *new)
 {
 	if (trace_head == NULL) {
 		trace_head = new;
@@ -839,7 +845,7 @@ int insert_trace_record(job_trace_t *new)
 	return 0;
 }
 
-int insert_rsv_trace_record(rsv_trace_t *new)
+static int _insert_rsv_trace_record(rsv_trace_t *new)
 {
 	if (rsv_trace_head == NULL) {
 		rsv_trace_head = new;
@@ -851,7 +857,7 @@ int insert_rsv_trace_record(rsv_trace_t *new)
 	return 0;
 }
 
-int init_trace_info(void *ptr, int op)
+static int _init_trace_info(void *ptr, int op)
 {
 	job_trace_t *new_trace_record;
 	rsv_trace_t *new_rsv_trace_record;
@@ -860,7 +866,7 @@ int init_trace_info(void *ptr, int op)
 	if (op == 0) {
 		new_trace_record = calloc(1, sizeof(job_trace_t));
 		if (new_trace_record == NULL) {
-			printf("init_trace_info: Error in calloc.\n");
+			printf("_init_trace_info: Error in calloc.\n");
 			return -1;
 		}
 
@@ -895,13 +901,13 @@ int init_trace_info(void *ptr, int op)
 		/* Cheating a bit for studying wclimit impact  */
 		//new_trace_record->wclimit = new_trace_record->duration;
 
-		insert_trace_record(new_trace_record);
+		_insert_trace_record(new_trace_record);
 	}
 
 	if (op == 1) {
 		new_rsv_trace_record = calloc(1, sizeof(rsv_trace_t));
 		if (new_rsv_trace_record == NULL) {
-			printf("init_trace_info: Error in calloc for new reservation\n");
+			printf("_init_trace_info: Error in calloc for new reservation\n");
 			return -1;
 		}
 
@@ -911,14 +917,14 @@ int init_trace_info(void *ptr, int op)
 		printf("Inserting new reservation trace record for time %ld\n",
 			new_rsv_trace_record->creation_time);
 
-		insert_rsv_trace_record(new_rsv_trace_record);
+		_insert_rsv_trace_record(new_rsv_trace_record);
 	}
 
 	return 0;
 }
 
 
-int init_job_trace(void)
+static int _init_job_trace(void)
 {
 	int trace_file;
 	job_trace_t new_job;
@@ -932,7 +938,7 @@ int init_job_trace(void)
 
 	/* job_id, submit_delta, duration, tasks, tasks_per_node, cpus_per_task */
 	while (read(trace_file, &new_job, sizeof(new_job))) { 
-		init_trace_info(&new_job, 0);
+		_init_trace_info(&new_job, 0);
 		total_trace_records++;
 	}
 
@@ -943,7 +949,7 @@ int init_job_trace(void)
 	return 0;
 }
 
-int init_rsv_trace(void)
+static int _init_rsv_trace(void)
 {
 	int trace_file;
 	rsv_trace_t new_rsv;
@@ -996,24 +1002,26 @@ int init_rsv_trace(void)
 		}
 
 #if DEBUG
-		printf("Reading filename %s for execution at %ld\n", new_rsv.rsv_command, new_rsv.creation_time);
+		printf("Reading filename %s for execution at %ld\n",
+		       new_rsv.rsv_command, new_rsv.creation_time);
 #endif
 
-		init_trace_info(&new_rsv, 1);
+		_init_trace_info(&new_rsv, 1);
 		total_trace_records++;
 		if (total_trace_records > 10)
 			break;
 	}
 
 
-	printf("Trace initializarion done. Total trace records for reservations: %d\n", total_trace_records);
+	printf("Trace initializarion done. Total trace records for reservations: %d\n",
+	       total_trace_records);
 	close(trace_file);
 
 	return 0;
 }
 
 /* IPC semaphores created use as a prefix the name of user executing sim_mgr */
-int init_semaphores(void)
+static int _init_semaphores(void)
 {
 	char sem_name[100];
 	int i;
@@ -1057,7 +1065,7 @@ int init_semaphores(void)
 }
 
 
-int building_shared_memory(void)
+static int _building_shared_memory(void)
 {
 	int fd;
 
@@ -1075,7 +1083,7 @@ int building_shared_memory(void)
 
 	ftruncate(fd, 8192);
 
-	if (init_semaphores() < 0) {
+	if (_init_semaphores() < 0) {
 		printf("semaphores initialization failed\n");
 		return 1;
 	}
@@ -1092,8 +1100,8 @@ int building_shared_memory(void)
 	return 0;
 }
 
-/* I do not like this approach for thread identification but ...*/
-int reading_rpc_threads_info(void)
+/* FIXME: This database file is never populated. It appears to be vestigial. */
+static int _reading_rpc_threads_info(void)
 {
 	int fd;
 	char *addr1;
@@ -1103,7 +1111,8 @@ int reading_rpc_threads_info(void)
 
 	fd = open("rpc_threads.info", O_RDONLY);
 	if (fd < 0) {
-		return -1;
+		printf("Can not open rpc_threads.info file\n");
+		return 0;
 	}
 
 	addr1 = malloc(30);
@@ -1155,8 +1164,8 @@ int reading_rpc_threads_info(void)
 
 #define DEBUG_SERVER_PORT 23720
 
-static void *debug_server(void *arg) {
-
+static void *_debug_server(void *arg)
+{
 	int server_sock_fd, server_sock;
 	int val;
 	socklen_t len;
@@ -1170,7 +1179,7 @@ static void *debug_server(void *arg) {
 	debug_log = open("sim_debug_server.log",
 			 O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 	if (debug_log < 0) {
-		printf("(debug_server): debug log file sim_debug_server.log problem. Exiting\n");
+		printf("(_debug_server): debug log file sim_debug_server.log problem. Exiting\n");
 		pthread_exit(0);
 	}
 
@@ -1178,13 +1187,13 @@ static void *debug_server(void *arg) {
 	if (server_sock_fd < 0) {
 		memset(&buffer_log, 1024, '\0');
 		sprintf(&buffer_log[0],
-			"(debug_server): Something was wrong creating socket\n");
+			"(_debug_server): Something was wrong creating socket\n");
 		write(debug_log, &buffer_log, strlen(buffer_log));
 		pthread_exit(0);
 	}
 
 	memset(&buffer_log[0], 1024, '\0');
-	sprintf(&buffer_log[0], "(debug_server): Opened log file...\n");
+	sprintf(&buffer_log[0], "(_debug_server): Opened log file...\n");
 	write(debug_log, &buffer_log, strlen(buffer_log));
 
 	val = 1;
@@ -1198,14 +1207,16 @@ static void *debug_server(void *arg) {
 
 	if (bind(server_sock_fd, (struct sockaddr *) &sin, sizeof(sin)) < 0) {
 		memset(&buffer_log, 1024, '\0');
-		sprintf(&buffer_log[0], "(debug_server): problem binding socket\n");
+		sprintf(&buffer_log[0],
+			"(_debug_server): problem binding socket\n");
 		write(debug_log, &buffer_log, strlen(buffer_log));
 		pthread_exit(0);
 	}
 
 	if (listen(server_sock_fd, 10) < 0) {
 		memset(&buffer_log, 1024, '\0');
-		sprintf(&buffer_log[0], "(debug_server): problem listening to socket\n");
+		sprintf(&buffer_log[0],
+			"(_debug_server): problem listening to socket\n");
 		write(debug_log, &buffer_log, strlen(buffer_log));
 		pthread_exit(0);
 	}
@@ -1214,7 +1225,8 @@ static void *debug_server(void *arg) {
 				  (struct sockaddr *)&remote_addr,
 				  &remote_addrlen)) < 0) {
 		memset(&buffer_log, 1024, '\0');
-		sprintf((char *)&buffer_log, "(monitor_server): accept error\n");
+		sprintf((char *)&buffer_log,
+			"(monitor_server): accept error\n");
 		write(debug_log, (char *)&buffer_log, strlen(buffer_log));
 	}
 
@@ -1254,8 +1266,10 @@ static void *debug_server(void *arg) {
 		    sizeof(unsigned int)) {
 			memset(&buffer_log, 1024, '\0');
 			printf("DEBUG_SERVER: send_error\n");
-			sprintf((char *)&buffer_log, "(monitor_server): send error\n");
-			write(debug_log, (char *)&buffer_log, strlen(buffer_log));
+			sprintf((char *)&buffer_log,
+				"(monitor_server): send error\n");
+			write(debug_log, (char *)&buffer_log,
+			      strlen(buffer_log));
 		} else {
 			sim_mgr_debug(5, "DEBUG_SERVER: %d bytes sent\n",
 				      sizeof(unsigned int));
@@ -1265,8 +1279,10 @@ static void *debug_server(void *arg) {
 		    sizeof(unsigned int)) {
 			memset(&buffer_log, 1024, '\0');
 			printf("DEBUG_SERVER: send_error\n");
-			sprintf((char *)&buffer_log, "(monitor_server): send error\n");
-			write(debug_log, (char *)&buffer_log, strlen(buffer_log));
+			sprintf((char *)&buffer_log,
+				"(monitor_server): send error\n");
+			write(debug_log, (char *)&buffer_log,
+			      strlen(buffer_log));
 		} else {
 			sim_mgr_debug(5, "DEBUG_SERVER: %d bytes sent\n",
 				      sizeof(unsigned int));
@@ -1276,7 +1292,7 @@ static void *debug_server(void *arg) {
 
 		while (recv(server_sock, &req_type, sizeof(int), 0) < 0) {
 			memset(&buffer_log, 1024, '\0');
-			sprintf(&buffer_log[0], "(debug_server): recv error\n");
+			sprintf(&buffer_log[0], "(_debug_server): recv error\n");
 			write(debug_log, &buffer_log, strlen(buffer_log));
 			continue;
 		}
@@ -1287,8 +1303,8 @@ static void *debug_server(void *arg) {
 #endif
 
 
-int main(int argc, char *argv[], char *envp[]) {
-
+int main(int argc, char *argv[], char *envp[])
+{
 	pthread_attr_t attr;
 	pthread_t id_server = 0, id_mgr;   
 	int i = 0;
@@ -1315,7 +1331,7 @@ int main(int argc, char *argv[], char *envp[]) {
 	printf("Found sbatch program at %s\n", sbatch_bin);
 
 	sprintf((char *)&scontrol_bin, "%s/scontrol", getenv("SLURM_PROGRAMS"));
-	printf("Found scontrol program at %s\n", sbatch_bin);
+	printf("Found scontrol program at %s\n", scontrol_bin);
 
 	/* Using a generated file during installation for threads identification
 	 * ... sucks but something like using thread start address for function
@@ -1323,34 +1339,34 @@ int main(int argc, char *argv[], char *envp[]) {
 	 * linking slurm daemons binaries with rpc_threads.info data ensuring
 	 * they both are from same slurm version. A key shared by sim_mgr and
 	 * rpc_threads.info? */
-	if (reading_rpc_threads_info() < 0) {
+	if (_reading_rpc_threads_info() < 0) {
 		printf("Error reading RPC threads info. Did you install "
 			"rpc_threads.info correctly?\n");
 		return -1;
 	}
 
-	if (building_shared_memory() < 0) {
+	if (_building_shared_memory() < 0) {
 		printf("Error building shared memory and mmaping it\n");
 		return -1;
 	}
 
-	if (init_job_trace() < 0) {
-		printf("An error was detected when reading trace file. Exiting...\n");
+	if (_init_job_trace() < 0) {
+		printf("An error was detected when reading job trace file. Exiting...\n");
 		return -1;
 	}
 
-	if (init_rsv_trace() < 0) {
+	if (_init_rsv_trace() < 0) {
 		printf("An error was detected when reading trace file. Exiting...\n");
 		return -1;
 	}
 
 	pthread_attr_init(&attr);
-	signal(SIGINT, dumping_shared_mem);
-	signal(SIGHUP, dumping_shared_mem);
-	signal(SIGUSR1, change_debug_level);
+	signal(SIGINT, _dumping_shared_mem);
+	signal(SIGHUP, _dumping_shared_mem);
+	signal(SIGUSR1, _change_debug_leve);
 
 #ifdef MONITOR 
-	while (pthread_create(&id_server, &attr, &debug_server, 0)) {
+	while (pthread_create(&id_server, &attr, &_debug_server, 0)) {
 		printf("Debug server can not be executed. Exiting...\n");
 		return -1;
 	}
@@ -1359,8 +1375,8 @@ int main(int argc, char *argv[], char *envp[]) {
 	pthread_attr_init(&attr);
 
 	/* This is a thread for flexibility */
-	while (pthread_create(&id_mgr, &attr, &time_mgr, 0)) {
-		printf("Error with pthread_create for time_mgr\n"); 
+	while (pthread_create(&id_mgr, &attr, &_time_mgr, 0)) {
+		printf("Error with pthread_create for _time_mgr\n"); 
 		return -1;
 	}
 

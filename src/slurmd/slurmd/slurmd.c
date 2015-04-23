@@ -1523,12 +1523,12 @@ _slurmd_init(void)
 	}
 #endif /* !NDEBUG */
 
-#ifndef SLURM_SIMULATOR
 	/*
 	 * Create a context for verifying slurm job credentials
 	 */
 	if (!(conf->vctx = slurm_cred_verifier_ctx_create(conf->pubkey)))
 		return SLURM_FAILURE;
+#ifndef SLURM_SIMULATOR
 	if (!strcmp(conf->select_type, "select/serial")) {
 		/* Only cache credential for 5 seconds with select/serial
 		 * for shorter cache searches and higher throughput */
@@ -2366,8 +2366,8 @@ static void *_simulator_helper(void *arg)
 		sleep(1);
 	}
 	info("SIM: Simulator Helper finishing...");
-	pthread_exit(0);
 	_decrement_thd_count();
+	pthread_exit(0);
 	return NULL;
 }
 #endif
