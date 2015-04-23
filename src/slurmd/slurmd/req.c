@@ -5622,13 +5622,6 @@ static int  _simulator_add_future_event(batch_job_launch_msg_t *req)
 	pthread_mutex_lock(&simulator_mutex);
 	now = time(NULL);
 
-	new_event = (simulator_event_t *)malloc(sizeof(simulator_event_t));
-	if (!new_event) {
-		error("SIM: malloc fails for new_event");
-		pthread_mutex_unlock(&simulator_mutex);
-		return -1;
-	}
-
 	/* Checking job_id as expected */
 	while (temp_ptr) {
 		if (temp_ptr->job_id == req->job_id)
@@ -5641,6 +5634,7 @@ static int  _simulator_add_future_event(batch_job_launch_msg_t *req)
 		pthread_mutex_unlock(&simulator_mutex);
 		return -1;
 	}
+	new_event = (simulator_event_t *)xmalloc(sizeof(simulator_event_t));
 	new_event->job_id = req->job_id;
 	new_event->type = REQUEST_COMPLETE_BATCH_SCRIPT;
 	new_event->when = now + temp_ptr->duration;
@@ -5698,6 +5692,7 @@ static void _simulator_rpc_batch_job(slurm_msg_t *msg)
 	while ((node_name = hostlist_shift(hl))) {
 		info("SIM: nodelist %s", node_name);
 	}
+	hostlist_destroy(hl);
 	info("SIM: Hostlist printed\n");
 
 	if (slurm_send_rc_msg(msg, SLURM_SUCCESS) < 1) {
@@ -5721,12 +5716,8 @@ static int  _rpc_sim_job(slurm_msg_t *msg)
 	     sim_job->job_id, sim_job->duration);
 
 	if (sim_job->job_id != last_job_id) {
-		new = (simulator_event_info_t *)calloc(1, sizeof(simulator_event_info_t));
-		if (!new) {
-			info("SIM: _rpc_sim_job error in calloc\n");
-			return rc;
-		}
-
+		new = (simulator_event_info_t *)
+		      xmalloc(sizeof(simulator_event_info_t));
 		new->job_id = sim_job->job_id;
 		new->duration = sim_job->duration;
 
@@ -5781,7 +5772,7 @@ static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 		}
 
 		while ((temp->next) &&
-		       (temp->next->job_id =! req_kill->job_id)){
+		       (temp->next->job_id != req_kill->job_id)) {
 			temp = temp->next;
 		}
 
@@ -5797,9 +5788,8 @@ static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 	}
 	pthread_mutex_unlock(&simulator_mutex);
 
-	hl = hostlist_create(event_sim->nodelist);
-
 	/* With FRONTEND just one epilog complete message is needed */
+	hl = hostlist_create(event_sim->nodelist);
 	node_name = hostlist_shift(hl);
 	//while ((node_name = hostlist_shift(hl))) {
 		info("SIM: Sending epilog complete message for job %u node %s",
@@ -5817,6 +5807,6 @@ static void _simulator_rpc_terminate_job(slurm_msg_t *rec_msg)
 		slurm_send_recv_controller_rc_msg(&msg, &rc);
 	//}
 	hostlist_destroy(hl);
-	free(event_sim);
+	xfree(event_sim);
 }
 #endif
