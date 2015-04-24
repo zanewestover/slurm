@@ -34,6 +34,17 @@
 \*****************************************************************************/
 #define _GNU_SOURCE
 
+#if HAVE_CONFIG_H
+#  include "config.h"
+#  if HAVE_INTTYPES_H
+#    include <inttypes.h>
+#  else
+#    if HAVE_STDINT_H
+#      include <stdint.h>
+#    endif
+#  endif			/* HAVE_INTTYPES_H */
+#endif
+
 #include <dlfcn.h>
 #include <errno.h>
 #include <execinfo.h>
@@ -80,7 +91,7 @@ int (*real_pthread_create)(pthread_t *, const pthread_attr_t *, void *(*start) (
 void (*real_pthread_exit)(void *retval);
 int (*real_pthread_join)(pthread_t thread, void **retval);
 
-int get_new_thread_id(void);
+uint64_t get_new_thread_id(void);
 int set_exit_map_array(int pos);
 int set_new_thread(int pos);
 int get_thread_id(void);
@@ -109,7 +120,7 @@ int *slurmd_pid;
 
 /* Local data by program */
 pthread_t main_thread;
-int main_thread_id;
+uint64_t main_thread_id;
 
 typedef struct thread_sem_info {
 	int id;
@@ -225,7 +236,7 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 {
 	int ret;
 	char sem_name[100];
-	int s_id;
+	uint64_t s_id;
 	int sval;
 	int err = 0;
 	int proto = 0;
@@ -582,17 +593,18 @@ int get_thread_id(void)
 }
 
 /* This should be called with global_sem protection */
-int get_new_thread_id(void)
+uint64_t get_new_thread_id(void)
 {
-	long long int map;
+	uint64_t map;
+	int i, inx = -1;
 
 	map = sleep_map_array[0];
 
 	/* First 32 thread slots are for slurmd, last 32 ones for slurmctld */
 	if (slurmd_pid[0] == getpid())
-		map |= 0xFFFFFFFF00000000ULL;
+		map |= 0xFFFFFFFF00000000;
 	else
-		map |= 0xFFFFFFFFULL;
+		map |= 0x00000000FFFFFFFF;
 
 	map = ~map;
 
@@ -610,17 +622,18 @@ int get_new_thread_id(void)
 #endif
 
 	/* Getting first slot available */
-	map = ffsll(map);
-
-	if (map == 0) {
+	for (i = 0; i < 64; i++) {
+		if ((map >> i) & 0x1) {
+			inx = i;
+			break;
+		}
+	}
+	if (inx < 0) {
 		/*printf("WARNING!: space no available for a new threads. Current threads: %u\n", current_threads[0]);*/
 		return -1;
 	}
 
-	/* Bit 0 is bit 1(ffsll returns ordinal value) */
-	map = map - 1;
-
-	sleep_map_array[0] |= (1ULL << map);
+	sleep_map_array[0] |= (1ULL << inx);
 	current_threads[0]++;
 	if (current_threads[0] == 62) {   /* 62 because we have slots for main slurmctl and slurmd threads */
 		printf("SIM ERROR: %d threads is not possible\n",
@@ -628,7 +641,7 @@ int get_new_thread_id(void)
 		return -1;
 	}
 
-	return map;
+	return inx;
 }
 
 /* We need to know which threads are from slurmctld and which from slurmd */
@@ -709,7 +722,7 @@ int init_semaphores(void)
 	threads_data[main_thread_id].sleep = -1;
 	threads_data[main_thread_id].pid  = getpid();
 
-	printf("Getting main_thread_id %d\n", main_thread_id);
+	printf("Getting main_thread_id %"PRIu64"\n", main_thread_id);
 
 	sem_post(global_sem);
 
@@ -902,7 +915,7 @@ void __attribute__ ((constructor)) sim_init(void)
 
 		real_gettimeofday = dlsym( handle, "gettimeofday");
 		if (real_gettimeofday == NULL) {
-			printf("Erro: no sleep function found\n");
+			printf("Error: no sleep function found\n");
 			return;
 		}
 	}
@@ -910,9 +923,13 @@ void __attribute__ ((constructor)) sim_init(void)
 	/* slurmctld and slurmd got all the wrappers but some other programs
 	 * like sinfo or scontrol just time related wrappers */
 	if (slurmctl_pid[0] == getpid() || slurmd_pid[0] == getpid()) {
-		printf("This slurm program is the slurmctld or slurmd "
-		       "(my_pid: %d)(slurmctld: %d)(slurmd: %d)\n",
-		       getpid(), slurmctl_pid[0], slurmd_pid[0]);
+		char *name;
+		if (slurmctl_pid[0] == getpid())
+			name = "slurmctld";
+		else
+			name = "slurmd";
+		printf("This is the %s daemon (PIDs slurmctld:%d, slurmd:%d)\n",
+		       name, slurmctl_pid[0], slurmd_pid[0]);
 		if (real_sleep == NULL) {
 			printf("Looking for real sleep function\n");
 			handle = dlopen(LIBC_PATH, RTLD_LOCAL | RTLD_LAZY);

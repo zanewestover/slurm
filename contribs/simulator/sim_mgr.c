@@ -76,7 +76,7 @@
 #define MONITOR_INTERVAL 300
 
 #undef DEBUG
-       
+    
 int sim_mgr_debug_level = 9;
 
 #define sim_mgr_debug(debug_level, ...) \
@@ -142,7 +142,7 @@ char scontrol_bin[200];
 char *global_argv[10] = { NULL };
 char *global_envp[100];     /* FIXME: I do not like limited number of env values */
 
-static void _change_debug_leve(int signum)
+static void _change_debug_level(int signum)
 {
 	if (sim_mgr_debug_level > 0)
 		sim_mgr_debug_level = 0;
@@ -176,7 +176,9 @@ static void _dumping_shared_mem(int signum)
 		"===========\t========\t========\n");
 
 	for (i = 0; i < MAX_THREADS; i++) {
-		if (threads_data[i].wait_count > 0) {
+		if (threads_data[i].pid == 0) {
+			continue;
+		} else if (threads_data[i].wait_count > 0) {
 			printf("%d\t\t%d\t\t%016lx\t\t%d/%d/%d/%d\t\t\t"
 				"%08ld\t%08ld\t%08ld\t%lld\n",
 				i, threads_data[i].pid,
@@ -218,8 +220,11 @@ static void _dumping_shared_mem(int signum)
 	/* Let's kill slurmctld and slurmd */
 	/* This is not the way you should stop slurm in a real environment,
 	 * but it helps for simulation debugging */
-	kill(threads_data[0].pid, SIGSEGV);
-	kill(threads_data[32].pid, SIGSEGV);
+	printf("Killing slurmctld and slurmd with SIGSEGV\n");
+	if (threads_data[0].pid)
+		kill(threads_data[0].pid, SIGSEGV);
+	if (threads_data[32].pid)
+		kill(threads_data[32].pid, SIGSEGV);
 
 	if (signum == SIGINT)
 		exit(0);
@@ -932,8 +937,8 @@ static int _init_job_trace(void)
 
 	trace_file = open("test.trace", O_RDONLY);
 	if (trace_file < 0) {
-		printf("Error opening file test.trace\n");
-		return -1;
+		printf("Error opening file test.trace, assume no data\n");
+		return 0;
 	}
 
 	/* job_id, submit_delta, duration, tasks, tasks_per_node, cpus_per_task */
@@ -960,8 +965,8 @@ static int _init_rsv_trace(void)
 
 	trace_file = open("rsv.trace", O_RDONLY);
 	if (trace_file < 0) {
-		printf("Error opening file rsv.trace\n");
-		return -1;
+		printf("Error opening file rsv.trace, assume no data\n");
+		return 0;
 	}
 
 	new_rsv.rsv_command = malloc(100);
@@ -1363,9 +1368,9 @@ int main(int argc, char *argv[], char *envp[])
 	pthread_attr_init(&attr);
 	signal(SIGINT, _dumping_shared_mem);
 	signal(SIGHUP, _dumping_shared_mem);
-	signal(SIGUSR1, _change_debug_leve);
+	signal(SIGUSR1, _change_debug_level);
 
-#ifdef MONITOR 
+#ifdef MONITOR
 	while (pthread_create(&id_server, &attr, &_debug_server, 0)) {
 		printf("Debug server can not be executed. Exiting...\n");
 		return -1;

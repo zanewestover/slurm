@@ -64,9 +64,10 @@ Build instructions:
 
 8. Validate that the slurmctld and slurmd daemons can be executed. These
    command lines will start the daemons in the foreground and send output to
-   your terminal. For example:
+   your terminal, so execute each command in its own windew. For example:
    SIM_DIR/sbin/slurmctld -Dcv
    SIM_DIR/sbin/slurmd -Dcv
+   SIM_DIR/bin/sinfo
 
 9. Stop the slurmctld and slurmd processes.
 
