@@ -93,7 +93,7 @@ slurm_print_node_info_msg(FILE *out, node_info_msg_t *node_info_msg_ptr,
 	}
 
 	if (json_flag)
-		fprintf(out, "{ \"jobs\": [\n");
+		fprintf(out, "{ \"nodes\": [\n");
 	for (i = 0, node_ptr = node_info_msg_ptr->node_array;
 	     i < node_info_msg_ptr->record_count; i++, node_ptr++) {
 		if (!node_ptr->name)

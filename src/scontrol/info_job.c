@@ -76,7 +76,7 @@ _in_node_bit_list(int inx, int *node_list_array)
 
 /* Load current job table information into *job_buffer_pptr */
 extern int
-scontrol_load_job(job_info_msg_t ** job_buffer_pptr, uint32_t job_id)
+scontrol_load_job(job_info_msg_t **job_buffer_pptr, uint32_t job_id)
 {
 	int error_code;
 	static uint16_t last_show_flags = 0xffff;
@@ -322,7 +322,7 @@ scontrol_print_job (char * job_id_str)
 	if (error_code) {
 		exit_code = 1;
 		if (quiet_flag != 1)
-			slurm_perror ("slurm_load_jobs error");
+			slurm_perror("slurm_load_jobs error");
 		return;
 	}
 
@@ -333,11 +333,13 @@ scontrol_print_job (char * job_id_str)
 	     i < job_buffer_ptr->record_count; i++, job_ptr++) {
 		if (!_task_id_in_job(job_ptr, array_id)) {
 			job_ptr->job_id = 0;
+			job_buffer_ptr->last_update = (time_t) 0;
 			continue;
 		}
 		if ((array_id != NO_VAL) && job_ptr->array_task_str) {
 			xfree(job_ptr->array_task_str);
 			job_ptr->array_task_id = array_id;
+			job_buffer_ptr->last_update = (time_t) 0;
 		}
 		print_cnt++;
 	}
@@ -359,7 +361,6 @@ scontrol_print_job (char * job_id_str)
 
 	slurm_print_job_info_msg(stdout, job_buffer_ptr, one_liner, json_flag,
 				 verbose);
-	slurm_free_job_info_msg(job_buffer_ptr);
 }
 
 /*

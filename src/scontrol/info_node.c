@@ -113,6 +113,8 @@ scontrol_print_node_list(char *node_list)
 				if (hostlist_find(host_list, node_ptr->name)
 				    == -1) {
 					xfree(node_ptr->name);
+					node_info_ptr->last_update =
+						(time_t) 0;
 				}
 			}
 			hostlist_destroy(host_list);
@@ -135,7 +137,6 @@ scontrol_print_node_list(char *node_list)
 
 	slurm_print_node_info_msg(stdout, node_info_ptr,
 				  one_liner, json_flag, verbose);
-	slurm_free_node_info_msg(node_info_ptr);
 
 	return;
 }

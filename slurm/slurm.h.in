@@ -4181,9 +4181,12 @@ extern void slurm_free_partition_info_msg PARAMS(
  * IN out - file to write to
  * IN part_info_ptr - partitions information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
 extern void slurm_print_partition_info_msg PARAMS(
-	(FILE * out, partition_info_msg_t * part_info_ptr, int one_liner));
+	(FILE * out, partition_info_msg_t * part_info_ptr, int one_liner,
+	 int json_flag, int verbose));
 
 /*
  * slurm_print_partition_info - output information about a specific Slurm
@@ -4191,20 +4194,23 @@ extern void slurm_print_partition_info_msg PARAMS(
  * IN out - file to write to
  * IN part_ptr - an individual partition information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
 extern void slurm_print_partition_info PARAMS(
-	(FILE *out , partition_info_t * part_ptr, int one_liner));
+	(FILE *out , partition_info_t * part_ptr, int one_liner,
+	 int json_flag));
 
 /*
  * slurm_sprint_partition_info - output information about a specific Slurm
  *	partition based upon message as loaded using slurm_load_partitions
  * IN part_ptr - an individual partition information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  * RET out - char * with formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
 extern char *slurm_sprint_partition_info PARAMS(
-	(partition_info_t * part_ptr, int one_liner));
+	(partition_info_t * part_ptr, int one_liner, int json_flag));
 
 /*
  * slurm_create_partition - create a new partition, only usable by user root

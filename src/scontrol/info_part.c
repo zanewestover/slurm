@@ -83,47 +83,43 @@ scontrol_load_partitions (partition_info_msg_t **part_buffer_pptr)
  * IN partition_name - NULL to print information about all partition
  */
 extern void
-scontrol_print_part (char *partition_name)
+scontrol_print_part(char *partition_name)
 {
-	int error_code, i, print_cnt = 0;
-	partition_info_msg_t *part_info_ptr = NULL;
+	int error_code, i, print_cnt = 0, verbose = 0;
+	partition_info_msg_t *part_buffer_ptr = NULL;
 	partition_info_t *part_ptr = NULL;
 
-	error_code = scontrol_load_partitions(&part_info_ptr);
+	error_code = scontrol_load_partitions(&part_buffer_ptr);
 	if (error_code) {
 		exit_code = 1;
 		if (quiet_flag != 1)
-			slurm_perror ("slurm_load_partitions error");
+			slurm_perror("slurm_load_partitions error");
 		return;
 	}
 
-	if (quiet_flag == -1) {
-		char time_str[32];
-		slurm_make_time_str ((time_t *)&part_info_ptr->last_update,
-			       time_str, sizeof(time_str));
-		printf ("last_update_time=%s, records=%d\n",
-			time_str, part_info_ptr->record_count);
-	}
+	if (quiet_flag == -1)
+		verbose = 1;
 
-	part_ptr = part_info_ptr->partition_array;
-	for (i = 0; i < part_info_ptr->record_count; i++) {
+	for (i = 0, part_ptr = part_buffer_ptr->partition_array;
+	     i < part_buffer_ptr->record_count; i++, part_ptr++) {
 		if (partition_name &&
-		    strcmp (partition_name, part_ptr[i].name) != 0)
-			continue;
+		    strcmp(partition_name, part_ptr->name)) {
+			xfree(part_ptr->name);
+			part_buffer_ptr->last_update = (time_t) 0;
+		}
 		print_cnt++;
-		slurm_print_partition_info (stdout, & part_ptr[i],
-		                            one_liner ) ;
-		if (partition_name)
-			break;
 	}
 
 	if (print_cnt == 0) {
 		if (partition_name) {
 			exit_code = 1;
 			if (quiet_flag != 1)
-				printf ("Partition %s not found\n",
-				        partition_name);
+				printf("Partition %s not found\n",
+				       partition_name);
 		} else if (quiet_flag != 1)
 			printf ("No partitions in the system\n");
 	}
+
+	slurm_print_partition_info_msg(stdout, part_buffer_ptr, one_liner,
+				       json_flag, verbose);
 }

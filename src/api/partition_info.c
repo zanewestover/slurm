@@ -59,23 +59,42 @@
  * IN out - file to write to
  * IN part_info_ptr - partitions information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
-void slurm_print_partition_info_msg ( FILE* out,
-		partition_info_msg_t * part_info_ptr, int one_liner )
+void slurm_print_partition_info_msg(FILE* out,
+		partition_info_msg_t *part_info_ptr, int one_liner,
+		int json_flag, int verbose)
 {
 	int i ;
-	partition_info_t * part_ptr = part_info_ptr->partition_array ;
+	partition_info_t *part_ptr;
 	char time_str[32];
+	bool first = true;
 
-	slurm_make_time_str ((time_t *)&part_info_ptr->last_update, time_str,
-		sizeof(time_str));
-	fprintf( out, "Partition data as of %s, record count %d\n",
-		time_str, part_info_ptr->record_count);
-
-	for (i = 0; i < part_info_ptr->record_count; i++) {
-		slurm_print_partition_info ( out, & part_ptr[i], one_liner ) ;
+	if (verbose) {
+		slurm_make_time_str((time_t *)&part_info_ptr->last_update,
+				    time_str, sizeof(time_str));
+		fprintf(out, "Partition data as of %s, record count %d\n",
+			time_str, part_info_ptr->record_count);
 	}
 
+	if (json_flag)
+		fprintf(out, "{ \"partitions\": [\n");
+	for (i = 0, part_ptr = part_info_ptr->partition_array;
+	     i < part_info_ptr->record_count; i++, part_ptr++) {
+		if (!part_ptr->name)
+			continue;
+		if (json_flag) {
+			if (first)
+				fprintf(out, " ");
+			else
+				fprintf(out, ",\n ");
+		}
+		first = false;
+		slurm_print_partition_info(out, part_ptr, one_liner, json_flag);
+	}
+	if (json_flag)
+		fprintf(out, "] }\n");
 }
 
 /*
@@ -84,26 +103,29 @@ void slurm_print_partition_info_msg ( FILE* out,
  * IN out - file to write to
  * IN part_ptr - an individual partition information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
-void slurm_print_partition_info ( FILE* out, partition_info_t * part_ptr,
-				  int one_liner )
+void slurm_print_partition_info(FILE* out, partition_info_t * part_ptr,
+				int one_liner, int json_flag)
 {
-	char *print_this = slurm_sprint_partition_info(part_ptr, one_liner);
-	fprintf ( out, "%s", print_this);
+	char *print_this;
+
+	print_this = slurm_sprint_partition_info(part_ptr, one_liner,json_flag);
+	fprintf(out, "%s", print_this);
 	xfree(print_this);
 }
-
 
 /*
  * slurm_sprint_partition_info - output information about a specific Slurm
  *	partition based upon message as loaded using slurm_load_partitions
  * IN part_ptr - an individual partition information record pointer
  * IN one_liner - print as a single line if true
+v
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
-char *slurm_sprint_partition_info ( partition_info_t * part_ptr,
-				    int one_liner )
+char *slurm_sprint_partition_info(partition_info_t * part_ptr, int one_liner,
+				  int json_flag)
 {
 	char tmp1[16], tmp2[16];
 	char tmp_line[MAXHOSTRANGELEN];
@@ -112,25 +134,34 @@ char *slurm_sprint_partition_info ( partition_info_t * part_ptr,
 	uint16_t force, preempt_mode, val;
 	uint32_t cluster_flags = slurmdb_setup_cluster_flags();
 
-	/****** Line 1 ******/
-
-	snprintf(tmp_line, sizeof(tmp_line),
-		 "PartitionName=%s",
-		 part_ptr->name);
+	/****** Line ******/
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line),
+			 "{\"PartitionName\":\"%s\"", part_ptr->name);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "PartitionName=%s",
+			 part_ptr->name);
+	}
 	xstrcat(out, tmp_line);
-	if (one_liner)
+
+	if (json_flag)
+		;
+	else if (one_liner)
 		xstrcat(out, " ");
 	else
 		xstrcat(out, "\n   ");
 
 	/****** Line 2 ******/
-
 	if ((part_ptr->allow_groups == NULL) ||
 	    (part_ptr->allow_groups[0] == '\0'))
-		sprintf(tmp_line, "AllowGroups=ALL");
-	else {
-		snprintf(tmp_line, sizeof(tmp_line),
-			 "AllowGroups=%s", part_ptr->allow_groups);
+		value = "ALL";
+	else 
+		value = part_ptr->allow_groups;
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), ", \"AllowGroups\"=\"%s\"",
+			 value);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "AllowGroups=%s", value);
 	}
 	xstrcat(out, tmp_line);
 
@@ -145,8 +176,13 @@ char *slurm_sprint_partition_info ( partition_info_t * part_ptr,
 		allow_deny = "Deny";
 		value = part_ptr->deny_accounts;
 	}
-	snprintf(tmp_line, sizeof(tmp_line),
-		 " %sAccounts=%s", allow_deny, value);
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), ", \"%sAccounts\"=\"%s\"",
+			 allow_deny, value);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line),
+			 " %sAccounts=%s", allow_deny, value);
+	}
 	xstrcat(out, tmp_line);
 
 	if (part_ptr->allow_qos || !part_ptr->deny_qos) {
@@ -160,16 +196,23 @@ char *slurm_sprint_partition_info ( partition_info_t * part_ptr,
 		allow_deny = "Deny";
 		value = part_ptr->deny_qos;
 	}
-	snprintf(tmp_line, sizeof(tmp_line),
-		 " %sQos=%s", allow_deny, value);
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), ", \"%ssQos\"=\"%s\"",
+			 allow_deny, value);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line),
+			 " %ssQos=%s", allow_deny, value);
+	}
 	xstrcat(out, tmp_line);
 
-	if (one_liner)
+	if (json_flag)
+		;
+	else if (one_liner)
 		xstrcat(out, " ");
 	else
 		xstrcat(out, "\n   ");
 
-	/****** Line 3 ******/
+	/****** Line ******/
 	if (part_ptr->allow_alloc_nodes == NULL)
 		snprintf(tmp_line, sizeof(tmp_line), "AllocNodes=%s","ALL");
 	else
