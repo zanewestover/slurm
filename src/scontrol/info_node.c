@@ -86,7 +86,7 @@ scontrol_print_node_list(char *node_list)
 	node_info_msg_t *node_info_ptr = NULL;
 	node_info_t *node_ptr;
 	hostlist_t host_list;
-	int error_code, i;
+	int error_code, i, verbose = 0;
 	uint16_t show_flags = 0;
 
 	if (all_flag)
@@ -102,13 +102,8 @@ scontrol_print_node_list(char *node_list)
 		return;
 	}
 
-	if (quiet_flag == -1) {
-		char time_str[32];
-		slurm_make_time_str((time_t *)&node_info_ptr->last_update,
-			            time_str, sizeof(time_str));
-		printf("last_update_time=%s, records=%d\n",
-		       time_str, node_info_ptr->record_count);
-	}
+	if (quiet_flag == -1)
+		verbose = 1;
 
 	if (node_list) {
 		if ((host_list = hostlist_create(node_list))) {
@@ -118,7 +113,6 @@ scontrol_print_node_list(char *node_list)
 				if (hostlist_find(host_list, node_ptr->name)
 				    == -1) {
 					xfree(node_ptr->name);
-					node_info_ptr->last_update = 0;
 				}
 			}
 			hostlist_destroy(host_list);
@@ -138,8 +132,10 @@ scontrol_print_node_list(char *node_list)
 			}
 		}
 	}
+
 	slurm_print_node_info_msg(stdout, node_info_ptr,
-				  one_liner, json_flag, 0);
+				  one_liner, json_flag, verbose);
+	slurm_free_node_info_msg(node_info_ptr);
 
 	return;
 }

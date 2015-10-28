@@ -3670,7 +3670,7 @@ extern int slurm_notify_job PARAMS((uint32_t job_id, char *message));
  * OUT job_id_ptr - place to store a slurm job_id
  * RET 0 or -1 on error
  */
-extern int slurm_pid2jobid PARAMS((pid_t job_pid, uint32_t * job_id_ptr));
+extern int slurm_pid2jobid PARAMS((pid_t job_pid, uint32_t *job_id_ptr));
 
 /*
  * slurm_print_job_info - output information about a specific Slurm
@@ -3678,9 +3678,10 @@ extern int slurm_pid2jobid PARAMS((pid_t job_pid, uint32_t * job_id_ptr));
  * IN out - file to write to
  * IN job_ptr - an individual job information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
 extern void slurm_print_job_info PARAMS((FILE*, slurm_job_info_t * job_ptr,
-					 int one_liner));
+					 int one_liner, int json_flag));
 
 /*
  * slurm_print_job_info_msg - output information about all Slurm
@@ -3688,20 +3689,24 @@ extern void slurm_print_job_info PARAMS((FILE*, slurm_job_info_t * job_ptr,
  * IN out - file to write to
  * IN job_info_msg_ptr - job information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
 extern void slurm_print_job_info_msg PARAMS(
-	(FILE * out, job_info_msg_t * job_info_msg_ptr, int one_liner));
+	(FILE *out, job_info_msg_t *job_info_msg_ptr, int one_liner,
+	 int json_flag, int verbose));
 
 /*
  * slurm_sprint_job_info - output information about a specific Slurm
  *	job based upon message as loaded using slurm_load_jobs
  * IN job_ptr - an individual job information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
 extern char *slurm_sprint_job_info PARAMS((slurm_job_info_t * job_ptr,
-					   int one_liner));
+					   int one_liner, int json_flag));
 
 /*
  * slurm_update_job - issue RPC to a job's configuration per request,
@@ -3917,6 +3922,7 @@ extern void slurm_print_node_info_msg PARAMS(
  * IN node_ptr - an individual node information record pointer
  * IN node_scaling - number of nodes each node represents
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
 extern void slurm_print_node_table PARAMS(
 	(FILE * out, node_info_t * node_ptr, int node_scaling, int one_liner,
@@ -3926,8 +3932,9 @@ extern void slurm_print_node_table PARAMS(
  * slurm_sprint_node_table - output information about a specific Slurm nodes
  *	based upon message as loaded using slurm_load_node
  * IN node_ptr - an individual node information record pointer
- * IN one_liner - print as a single line if true
  * IN node_scaling - number of nodes each node represents
+ * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */

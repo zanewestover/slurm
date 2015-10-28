@@ -305,17 +305,17 @@ static bool _task_id_in_job(job_info_t *job_ptr, uint32_t array_id)
 extern void
 scontrol_print_job (char * job_id_str)
 {
-	int error_code = SLURM_SUCCESS, i, print_cnt = 0;
+	int error_code = SLURM_SUCCESS, i, print_cnt = 0, verbose = 0;
 	uint32_t job_id = 0;
 	uint32_t array_id = NO_VAL;
-	job_info_msg_t * job_buffer_ptr = NULL;
+	job_info_msg_t *job_buffer_ptr = NULL;
 	job_info_t *job_ptr = NULL;
 	char *end_ptr = NULL;
 
 	if (job_id_str) {
-		job_id = (uint32_t) strtol (job_id_str, &end_ptr, 10);
+		job_id = (uint32_t) strtol(job_id_str, &end_ptr, 10);
 		if (end_ptr[0] == '_')
-			array_id = strtol( end_ptr + 1, &end_ptr, 10 );
+			array_id = strtol(end_ptr + 1, &end_ptr, 10);
 	}
 
 	error_code = scontrol_load_job(&job_buffer_ptr, job_id);
@@ -325,35 +325,24 @@ scontrol_print_job (char * job_id_str)
 			slurm_perror ("slurm_load_jobs error");
 		return;
 	}
-	if (quiet_flag == -1) {
-		char time_str[32];
-		slurm_make_time_str ((time_t *)&job_buffer_ptr->last_update,
-				     time_str, sizeof(time_str));
-		printf ("last_update_time=%s, records=%d\n",
-			time_str, job_buffer_ptr->record_count);
-	}
+
+	if (quiet_flag == -1)
+		verbose = 1;
 
 	for (i = 0, job_ptr = job_buffer_ptr->job_array;
 	     i < job_buffer_ptr->record_count; i++, job_ptr++) {
-		char *save_array_str = NULL;
-		uint32_t save_task_id = 0;
-		if (!_task_id_in_job(job_ptr, array_id))
+		if (!_task_id_in_job(job_ptr, array_id)) {
+			job_ptr->job_id = 0;
 			continue;
-		if ((array_id != NO_VAL) && job_ptr->array_task_str) {
-			save_array_str = job_ptr->array_task_str;
-			job_ptr->array_task_str = NULL;
-			save_task_id = job_ptr->array_task_id;
-			job_ptr->array_task_id = array_id;
 		}
-		slurm_print_job_info(stdout, job_ptr, one_liner);
-		if (save_array_str) {
-			job_ptr->array_task_str = save_array_str;
-			job_ptr->array_task_id = save_task_id;
+		if ((array_id != NO_VAL) && job_ptr->array_task_str) {
+			xfree(job_ptr->array_task_str);
+			job_ptr->array_task_id = array_id;
 		}
 		print_cnt++;
 	}
 
-	if (print_cnt == 0) {
+	if ((print_cnt == 0) && !json_flag) {
 		if (job_id_str) {
 			exit_code = 1;
 			if (quiet_flag != 1) {
@@ -367,6 +356,10 @@ scontrol_print_job (char * job_id_str)
 		} else if (quiet_flag != 1)
 			printf ("No jobs in the system\n");
 	}
+
+	slurm_print_job_info_msg(stdout, job_buffer_ptr, one_liner, json_flag,
+				 verbose);
+	slurm_free_job_info_msg(job_buffer_ptr);
 }
 
 /*

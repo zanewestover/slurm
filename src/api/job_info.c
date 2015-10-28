@@ -78,6 +78,7 @@ static void _load_node_info(void)
 		(void) slurm_load_node((time_t) NULL, &job_node_ptr, 0);
 	slurm_mutex_unlock(&job_node_info_lock);
 }
+
 static uint32_t _threads_per_core(char *host)
 {
 	uint32_t i, threads = 1;
@@ -260,27 +261,46 @@ extern uint32_t slurm_xlate_job_id(char *job_id_str)
  * IN out - file to write to
  * IN job_info_msg_ptr - job information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
 extern void
-slurm_print_job_info_msg ( FILE* out, job_info_msg_t *jinfo, int one_liner )
+slurm_print_job_info_msg(FILE *out, job_info_msg_t *jinfo, int one_liner,
+			 int json_flag, int verbose)
 {
 	int i;
-	job_info_t *job_ptr = jinfo->job_array;
+	slurm_job_info_t *job_ptr;
 	char time_str[32];
+	bool first = true;
 
-	slurm_make_time_str ((time_t *)&jinfo->last_update, time_str,
-		sizeof(time_str));
-	fprintf( out, "Job data as of %s, record count %d\n",
-		 time_str, jinfo->record_count);
+	if (verbose) {
+		slurm_make_time_str ((time_t *)&jinfo->last_update, time_str,
+			sizeof(time_str));
+		fprintf( out, "Job data as of %s, record count %d\n",
+			 time_str, jinfo->record_count);
+	}
 
-	for (i = 0; i < jinfo->record_count; i++)
-		slurm_print_job_info(out, &job_ptr[i], one_liner);
+	if (json_flag)
+		fprintf(out, "{ \"jobs\": [\n");
+	for (i = 0, job_ptr = jinfo->job_array; i < jinfo->record_count;
+	     i++, job_ptr++) {
+		if (json_flag) {
+			if (first)
+				fprintf(out, " ");
+			else
+				fprintf(out, ",\n ");
+		}
+		first = false;
+		slurm_print_job_info(out, job_ptr, one_liner, json_flag);
+	}
+	if (json_flag)
+		fprintf(out, "] }\n");
 }
 
 static void _sprint_range(char *str, uint32_t str_size,
 			  uint32_t lower, uint32_t upper)
 {
-	char tmp[128];
+	char tmp[128], tmp2[128];
 	uint32_t cluster_flags = slurmdb_setup_cluster_flags();
 
 	if (cluster_flags & CLUSTER_FLAG_BG) {
@@ -289,8 +309,8 @@ static void _sprint_range(char *str, uint32_t str_size,
 	} else {
 		snprintf(tmp, sizeof(tmp), "%u", lower);
 	}
+
 	if (upper > 0) {
-    		char tmp2[128];
 		if (cluster_flags & CLUSTER_FLAG_BG) {
 			convert_num_unit((float)upper, tmp2,
 					 sizeof(tmp2), UNIT_NONE,
@@ -299,9 +319,9 @@ static void _sprint_range(char *str, uint32_t str_size,
 			snprintf(tmp2, sizeof(tmp2), "%u", upper);
 		}
 		snprintf(str, str_size, "%s-%s", tmp, tmp2);
-	} else
+	} else {
 		snprintf(str, str_size, "%s", tmp);
-
+	}
 }
 
 /*
@@ -310,14 +330,16 @@ static void _sprint_range(char *str, uint32_t str_size,
  * IN out - file to write to
  * IN job_ptr - an individual job information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
 extern void
-slurm_print_job_info ( FILE* out, job_info_t * job_ptr, int one_liner )
+slurm_print_job_info(FILE* out, job_info_t *job_ptr, int one_liner,
+		     int json_flag)
 {
 	char *print_this;
 
 	_load_node_info();
-	print_this = slurm_sprint_job_info(job_ptr, one_liner);
+	print_this = slurm_sprint_job_info(job_ptr, one_liner, json_flag);
 	fprintf(out, "%s", print_this);
 	xfree(print_this);
 	_free_node_info();
@@ -328,11 +350,12 @@ slurm_print_job_info ( FILE* out, job_info_t * job_ptr, int one_liner )
  *	job based upon message as loaded using slurm_load_jobs
  * IN job_ptr - an individual job information record pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
 extern char *
-slurm_sprint_job_info ( job_info_t * job_ptr, int one_liner )
+slurm_sprint_job_info(job_info_t *job_ptr, int one_liner, int json_flag)
 {
 	int i, j, k;
 	char time_str[32], *group_name, *spec_name, *user_name;
@@ -367,40 +390,96 @@ slurm_sprint_job_info ( job_info_t * job_ptr, int one_liner )
 					    &ionodes);
 	}
 
-	/****** Line 1 ******/
-	snprintf(tmp_line, sizeof(tmp_line), "JobId=%u ", job_ptr->job_id);
+	/****** Line ******/
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), "{\"JobId\":%u",
+			 job_ptr->job_id);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "JobId=%u ",
+			 job_ptr->job_id);
+	}
 	out = xstrdup(tmp_line);
+
 	if (job_ptr->array_job_id) {
-		if (job_ptr->array_task_str) {
+		if (json_flag) {
 			snprintf(tmp_line, sizeof(tmp_line),
-				 "ArrayJobId=%u ArrayTaskId=%s ",
-				 job_ptr->array_job_id,
+				 ", \"ArrayJobId\":%u", job_ptr->array_job_id);
+		} else {
+			snprintf(tmp_line, sizeof(tmp_line), "ArrayJobId=%u ",
+				 job_ptr->array_job_id);
+		}
+		xstrcat(out, tmp_line);
+	}
+
+	if (job_ptr->array_job_id && job_ptr->array_task_str) {
+		if (json_flag) {
+			snprintf(tmp_line, sizeof(tmp_line),
+				 ", \"ArrayTaskId\":%s",
 				 job_ptr->array_task_str);
 		} else {
+			snprintf(tmp_line, sizeof(tmp_line), "ArrayTaskId=%s ",
+				 job_ptr->array_task_str);
+		}
+		xstrcat(out, tmp_line);
+	} else if (job_ptr->array_job_id) {
+		if (json_flag) {
 			snprintf(tmp_line, sizeof(tmp_line),
-				 "ArrayJobId=%u ArrayTaskId=%u ",
-				 job_ptr->array_job_id,
+				 ", \"ArrayTaskId\":%u",
+				 job_ptr->array_task_id);
+		} else {
+			snprintf(tmp_line, sizeof(tmp_line),
+				 "ArrayTaskId=%u ",
 				 job_ptr->array_task_id);
 		}
 		xstrcat(out, tmp_line);
 	}
-	snprintf(tmp_line, sizeof(tmp_line), "JobName=%s", job_ptr->name);
-	xstrcat(out, tmp_line);
-	if (one_liner)
+
+	if (job_ptr->array_job_id) {
+		if (json_flag) {
+			snprintf(tmp_line, sizeof(tmp_line), ", \"JobName\":%s",
+				 job_ptr->name);
+		} else {
+			snprintf(tmp_line, sizeof(tmp_line), "JobName=%s ",
+				 job_ptr->name);
+		}
+		xstrcat(out, tmp_line);
+	}
+
+	if (json_flag)
+		;
+	else if (one_liner)
 		xstrcat(out, " ");
 	else
 		xstrcat(out, "\n   ");
 
-	/****** Line 2 ******/
+	/****** Line ******/
 	user_name = uid_to_string((uid_t) job_ptr->user_id);
-	group_name = gid_to_string((gid_t) job_ptr->group_id);
-	snprintf(tmp_line, sizeof(tmp_line),
-		 "UserId=%s(%u) GroupId=%s(%u)",
-		 user_name, job_ptr->user_id, group_name, job_ptr->group_id);
-	xfree(user_name);
-	xfree(group_name);
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line),
+			 ", \"UserId\":%u, \"UserName\":\"%s\"",
+			 job_ptr->user_id,  user_name);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "UserId=%s(%u) ",
+			 user_name, job_ptr->user_id);
+	}
 	xstrcat(out, tmp_line);
-	if (one_liner)
+	xfree(user_name);
+
+	group_name = gid_to_string((gid_t) job_ptr->group_id);
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line),
+			 ", \"GroupId\":%u, \"GroupName\":\"%s\"",
+			 job_ptr->group_id,  group_name);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "GroupId=%s(%u) ",
+			 group_name, job_ptr->group_id);
+	}
+	xstrcat(out, tmp_line);
+	xfree(group_name);
+
+	if (json_flag)
+		;
+	else if (one_liner)
 		xstrcat(out, " ");
 	else
 		xstrcat(out, "\n   ");

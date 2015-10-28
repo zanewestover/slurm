@@ -83,6 +83,7 @@ slurm_print_node_info_msg(FILE *out, node_info_msg_t *node_info_msg_ptr,
 	int i;
 	node_info_t *node_ptr;
 	char time_str[32];
+	bool first = true;
 
 	if (verbose) {
 		slurm_make_time_str((time_t *)&node_info_msg_ptr->last_update,
@@ -97,8 +98,13 @@ slurm_print_node_info_msg(FILE *out, node_info_msg_t *node_info_msg_ptr,
 	     i < node_info_msg_ptr->record_count; i++, node_ptr++) {
 		if (!node_ptr->name)
 			continue;
-		if (json_flag && i)
-			fprintf(out, ",");
+		if (json_flag) {
+			if (first)
+				fprintf(out, " ");
+			else
+				fprintf(out, ",\n ");
+		}
+		first = false;
 		slurm_print_node_table(out, node_ptr,
 				       node_info_msg_ptr->node_scaling,
 				       one_liner, json_flag);
@@ -218,7 +224,7 @@ slurm_sprint_node_table(node_info_t *node_ptr,
 					  0, &select_reason_str);
 		if (select_reason_str) {
 			if (json_flag) {
-				xstrfmtcat(out, ",\"RackMidplane\":\"%s\"",
+				xstrfmtcat(out, ", \"RackMidplane\":\"%s\"",
 					   select_reason_str);
 			} else {
 				xstrfmtcat(out, "RackMidplane=%s ",
@@ -230,7 +236,7 @@ slurm_sprint_node_table(node_info_t *node_ptr,
 
 	if (node_ptr->arch) {
 		if (json_flag) {
-			snprintf(tmp_line, sizeof(tmp_line), ",\"Arch\":\"%s\"",
+			snprintf(tmp_line, sizeof(tmp_line), ", \"Arch\":\"%s\"",
 				 node_ptr->arch);
 		} else {
 			snprintf(tmp_line, sizeof(tmp_line), "Arch=%s ",
@@ -240,7 +246,7 @@ slurm_sprint_node_table(node_info_t *node_ptr,
 	}
 
 	if (json_flag) {
-		snprintf(tmp_line, sizeof(tmp_line), ",\"CoresPerSocket\":%u",
+		snprintf(tmp_line, sizeof(tmp_line), ", \"CoresPerSocket\":%u",
 			 node_ptr->cores);
 	} else {
 		snprintf(tmp_line, sizeof(tmp_line), "CoresPerSocket=%u",
