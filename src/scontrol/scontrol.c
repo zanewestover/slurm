@@ -51,6 +51,7 @@ int all_flag;		/* display even hidden partitions */
 int detail_flag;	/* display additional details */
 int exit_code;		/* scontrol's exit code, =1 on any error at any time */
 int exit_flag;		/* program to terminate if =1 */
+int json_flag;		/* Use JSON output format */
 int input_words;	/* number of words of input permitted */
 int one_liner;		/* one record per line if =1 */
 int quiet_flag;		/* quiet=1, verbose=-1, normal=0 */
@@ -100,6 +101,7 @@ main (int argc, char *argv[])
 		{"details",  0, 0, 'd'},
 		{"help",     0, 0, 'h'},
 		{"hide",     0, 0, OPT_LONG_HIDE},
+		{"json",     0, 0, 'j'},
 		{"oneliner", 0, 0, 'o'},
 		{"quiet",    0, 0, 'Q'},
 		{"usage",    0, 0, 'h'},
@@ -113,6 +115,7 @@ main (int argc, char *argv[])
 	detail_flag       = 0;
 	exit_code         = 0;
 	exit_flag         = 0;
+	json_flag         = 0;
 	input_field_count = 0;
 	quiet_flag        = 0;
 	verbosity         = 0;
@@ -133,7 +136,7 @@ main (int argc, char *argv[])
 		if ((optind < argc) &&
 		    !strncasecmp(argv[optind], "setdebugflags", 8))
 			break;	/* avoid parsing "-<flagname>" as option */
-		if ((opt_char = getopt_long(argc, argv, "adhM:oQvV",
+		if ((opt_char = getopt_long(argc, argv, "adhjM:oQvV",
 					    long_options, &option_index)) == -1)
 			break;
 		switch (opt_char) {
@@ -151,6 +154,9 @@ main (int argc, char *argv[])
 		case (int)'h':
 			_usage ();
 			exit(exit_code);
+			break;
+		case (int)'j':
+			json_flag = 1;
 			break;
 		case OPT_LONG_HIDE:
 			all_flag = 0;
@@ -813,6 +819,9 @@ _process_command (int argc, char *argv[])
 				 tag);
 		}
 		exit_flag = 1;
+	}
+	else if (strncasecmp (tag, "json", MAX(tag_len, 1)) == 0) {
+		json_flag = 1;
 	}
 	else if (strncasecmp (tag, "help", MAX(tag_len, 2)) == 0) {
 		if (argc > 1) {
@@ -1890,6 +1899,7 @@ scontrol [<OPTION>] [<COMMAND>]                                            \n\
      -d or --details: equivalent to \"details\" command                    \n\
      -h or --help: equivalent to \"help\" command                          \n\
      --hide: equivalent to \"hide\" command                                \n\
+     -j or --json: equivalent to \"json\" command                          \n\
      -M or --cluster: equivalent to \"cluster\" command                    \n\
      -o or --oneliner: equivalent to \"oneliner\" command                  \n\
      -Q or --quiet: equivalent to \"quiet\" command                        \n\
@@ -1928,6 +1938,7 @@ scontrol [<OPTION>] [<COMMAND>]                                            \n\
      holdu <job_list>         place user hold on specified job (see hold)  \n\
      hide                     do not display information about hidden      \n\
 			      partitions                                   \n\
+     json                     generate JSON format output.                 \n\
      listpids <job_id<.step>> List pids associated with the given jobid, or\n\
 			      all jobs if no id is given (This will only   \n\
 			      display the processes on the node which the  \n\

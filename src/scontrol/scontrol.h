@@ -100,6 +100,7 @@ extern int all_flag;	/* display even hidden partitions */
 extern int detail_flag;	/* display additional details */
 extern int exit_code;	/* scontrol's exit code, =1 on any error at any time */
 extern int exit_flag;	/* program to terminate if =1 */
+extern int json_flag;	/* Use JSON output format */
 extern int input_words;	/* number of words of input permitted */
 extern int one_liner;	/* one record per line if =1 */
 extern int quiet_flag;	/* quiet=1, verbose=-1, normal=0 */
@@ -149,8 +150,6 @@ extern void	scontrol_print_front_end(char *node_name,
 extern void	scontrol_print_job (char * job_id_str);
 extern void	scontrol_print_hosts (char * node_list);
 extern void	scontrol_print_licenses(const char *feature);
-extern void	scontrol_print_node (char *node_name,
-				     node_info_msg_t *node_info_ptr);
 extern void	scontrol_print_node_list (char *node_list);
 extern void	scontrol_print_part (char *partition_name);
 extern void	scontrol_print_block (char *block_name);

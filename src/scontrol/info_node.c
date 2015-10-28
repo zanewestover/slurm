@@ -41,7 +41,7 @@
 
 /* Load current node table information into *node_buffer_pptr */
 extern int
-scontrol_load_nodes (node_info_msg_t ** node_buffer_pptr, uint16_t show_flags)
+scontrol_load_nodes(node_info_msg_t ** node_buffer_pptr, uint16_t show_flags)
 {
 	int error_code;
 	static int last_show_flags = 0xffff;
@@ -75,68 +75,19 @@ scontrol_load_nodes (node_info_msg_t ** node_buffer_pptr, uint16_t show_flags)
 }
 
 /*
- * scontrol_print_node - print the specified node's information
- * IN node_name - NULL to print all node information
- * IN node_ptr - pointer to node table of information
- * NOTE: call this only after executing load_node, called from
- *	scontrol_print_node_list
- * NOTE: To avoid linear searches, we remember the location of the
- *	last name match
- */
-extern void
-scontrol_print_node (char *node_name, node_info_msg_t  * node_buffer_ptr)
-{
-	int i, j, print_cnt = 0;
-	static int last_inx = 0;
-
-	for (j = 0; j < node_buffer_ptr->record_count; j++) {
-		if (node_name) {
-			i = (j + last_inx) % node_buffer_ptr->record_count;
-			if ((node_buffer_ptr->node_array[i].name == NULL) ||
-			    strcmp (node_name,
-				    node_buffer_ptr->node_array[i].name))
-				continue;
-		} else if (node_buffer_ptr->node_array[j].name == NULL)
-			continue;
-		else
-			i = j;
-		print_cnt++;
-		slurm_print_node_table (stdout,
-					& node_buffer_ptr->node_array[i],
-					node_buffer_ptr->node_scaling,
-					one_liner);
-
-		if (node_name) {
-			last_inx = i;
-			break;
-		}
-	}
-
-	if (print_cnt == 0) {
-		if (node_name) {
-			exit_code = 1;
-			if (quiet_flag != 1)
-				printf ("Node %s not found\n", node_name);
-		} else if (quiet_flag != 1)
-				printf ("No nodes in the system\n");
-	}
-}
-
-
-/*
  * scontrol_print_node_list - print information about the supplied node list
  *	(or regular expression)
  * IN node_list - print information about the supplied node list
  *	(or regular expression)
  */
 extern void
-scontrol_print_node_list (char *node_list)
+scontrol_print_node_list(char *node_list)
 {
 	node_info_msg_t *node_info_ptr = NULL;
+	node_info_t *node_ptr;
 	hostlist_t host_list;
-	int error_code;
+	int error_code, i;
 	uint16_t show_flags = 0;
-	char *this_node_name;
 
 	if (all_flag)
 		show_flags |= SHOW_ALL;
@@ -147,28 +98,29 @@ scontrol_print_node_list (char *node_list)
 	if (error_code) {
 		exit_code = 1;
 		if (quiet_flag != 1)
-			slurm_perror ("slurm_load_node error");
+			slurm_perror("slurm_load_node error");
 		return;
 	}
 
 	if (quiet_flag == -1) {
 		char time_str[32];
-		slurm_make_time_str ((time_t *)&node_info_ptr->last_update,
-			             time_str, sizeof(time_str));
-		printf ("last_update_time=%s, records=%d\n",
-			time_str, node_info_ptr->record_count);
+		slurm_make_time_str((time_t *)&node_info_ptr->last_update,
+			            time_str, sizeof(time_str));
+		printf("last_update_time=%s, records=%d\n",
+		       time_str, node_info_ptr->record_count);
 	}
 
-	if (node_list == NULL) {
-		scontrol_print_node (NULL, node_info_ptr);
-	} else {
-		if ((host_list = hostlist_create (node_list))) {
-			while ((this_node_name = hostlist_shift (host_list))) {
-				scontrol_print_node(this_node_name,
-						    node_info_ptr);
-				free(this_node_name);
+	if (node_list) {
+		if ((host_list = hostlist_create(node_list))) {
+			for (i = 0, node_ptr = node_info_ptr->node_array;
+			     i < node_info_ptr->record_count;
+			     i++, node_ptr++) {
+				if (hostlist_find(host_list, node_ptr->name)
+				    == -1) {
+					xfree(node_ptr->name);
+					node_info_ptr->last_update = 0;
+				}
 			}
-
 			hostlist_destroy(host_list);
 		} else {
 			exit_code = 1;
@@ -186,6 +138,9 @@ scontrol_print_node_list (char *node_list)
 			}
 		}
 	}
+	slurm_print_node_info_msg(stdout, node_info_ptr,
+				  one_liner, json_flag, 0);
+
 	return;
 }
 

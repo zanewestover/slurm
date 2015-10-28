@@ -46,6 +46,10 @@ Do not display information about hidden partitions, their jobs and job steps.
 By default, neither partitions that are configured as hidden nor those partitions
 unavailable to user's group will be displayed (i.e. this is the default behavior).
 .TP
+\fB\-j\fR, \fB\-\-json\fR
+Generate JSON format output where possible. JSON format output is currently
+supported for the following entities: jobs, nodes, and partitions.
+.TP
 \fB\-M\fR, \fB\-\-clusters\fR=<\fIstring\fR>
 The cluster to issue commands to. Only one cluster name may be specified.
 
@@ -198,6 +202,11 @@ Note that when a job is held by a system administrator using the \fBhold\fP
 command, only a system administrator may release the job for execution (also
 see the \fBuhold\fP command). When the job is held by its owner, it may also
 be released by the job's owner.
+
+.TP
+\fBjson\fP
+Generate JSON format output where possible. JSON format output is currently
+supported for the following entities: jobs, nodes, and partitions.
 
 .TP
 \fBnotify\fP \fIjob_id\fP \fImessage\fP

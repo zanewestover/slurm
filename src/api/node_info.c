@@ -73,58 +73,73 @@
  * IN out - file to write to
  * IN node_info_msg_ptr - node information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
-void
-slurm_print_node_info_msg ( FILE * out, node_info_msg_t * node_info_msg_ptr,
-			    int one_liner )
+extern void
+slurm_print_node_info_msg(FILE *out, node_info_msg_t *node_info_msg_ptr,
+			  int one_liner, int json_flag, int verbose)
 {
 	int i;
-	node_info_t * node_ptr = node_info_msg_ptr -> node_array ;
+	node_info_t *node_ptr;
 	char time_str[32];
 
-	slurm_make_time_str ((time_t *)&node_info_msg_ptr->last_update,
-			     time_str, sizeof(time_str));
-	fprintf( out, "Node data as of %s, record count %d\n",
-		 time_str, node_info_msg_ptr->record_count);
-
-	for (i = 0; i < node_info_msg_ptr-> record_count; i++) {
-		slurm_print_node_table ( out, & node_ptr[i],
-					 node_info_msg_ptr->node_scaling,
-					 one_liner ) ;
+	if (verbose) {
+		slurm_make_time_str((time_t *)&node_info_msg_ptr->last_update,
+				    time_str, sizeof(time_str));
+		fprintf(out, "Node data as of %s, record count %d\n",
+			time_str, node_info_msg_ptr->record_count);
 	}
+
+	if (json_flag)
+		fprintf(out, "{ \"jobs\": [\n");
+	for (i = 0, node_ptr = node_info_msg_ptr->node_array;
+	     i < node_info_msg_ptr->record_count; i++, node_ptr++) {
+		if (!node_ptr->name)
+			continue;
+		if (json_flag && i)
+			fprintf(out, ",");
+		slurm_print_node_table(out, node_ptr,
+				       node_info_msg_ptr->node_scaling,
+				       one_liner, json_flag);
+	}
+	if (json_flag)
+		fprintf(out, "] }\n");
 }
 
 
 /*
- * slurm_print_node_table - output information about a specific Slurm nodes
+ * slurm_print_node_table - output information about a specific Slurm node
  *	based upon message as loaded using slurm_load_node
  * IN out - file to write to
  * IN node_ptr - an individual node information record pointer
  * IN node_scaling - number of nodes each node represents
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  */
-void
-slurm_print_node_table ( FILE * out, node_info_t * node_ptr,
-			 int node_scaling, int one_liner )
+extern void
+slurm_print_node_table(FILE *out, node_info_t *node_ptr,
+		       int node_scaling, int one_liner, int json_flag)
 {
 	char *print_this = slurm_sprint_node_table(node_ptr, node_scaling,
-						   one_liner);
-	fprintf ( out, "%s", print_this);
+						   one_liner, json_flag);
+	fprintf(out, "%s", print_this);
 	xfree(print_this);
 }
 
 /*
- * slurm_sprint_node_table - output information about a specific Slurm nodes
+ * slurm_sprint_node_table - output information about a specific Slurm node
  *	based upon message as loaded using slurm_load_node
  * IN node_ptr - an individual node information record pointer
  * IN node_scaling - number of nodes each node represents
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
-char *
-slurm_sprint_node_table (node_info_t * node_ptr,
-			 int node_scaling, int one_liner )
+extern char *
+slurm_sprint_node_table(node_info_t *node_ptr,
+			 int node_scaling, int one_liner, int json_flag)
 {
 	uint32_t my_state = node_ptr->node_state;
 	char *cloud_str = "", *comp_str = "", *drain_str = "", *power_str = "";
@@ -187,28 +202,55 @@ slurm_sprint_node_table (node_info_t * node_ptr,
 		my_state |= NODE_STATE_MIXED;
 	}
 
-	/****** Line 1 ******/
-	snprintf(tmp_line, sizeof(tmp_line), "NodeName=%s ", node_ptr->name);
+	/****** Line ******/
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), "{\"NodeName\":\"%s\"",
+			 node_ptr->name);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "NodeName=%s ",
+			 node_ptr->name);
+	}
 	xstrcat(out, tmp_line);
+
 	if (cluster_flags & CLUSTER_FLAG_BG) {
 		slurm_get_select_nodeinfo(node_ptr->select_nodeinfo,
 					  SELECT_NODEDATA_RACK_MP,
 					  0, &select_reason_str);
 		if (select_reason_str) {
-			xstrfmtcat(out, "RackMidplane=%s ", select_reason_str);
+			if (json_flag) {
+				xstrfmtcat(out, ",\"RackMidplane\":\"%s\"",
+					   select_reason_str);
+			} else {
+				xstrfmtcat(out, "RackMidplane=%s ",
+					   select_reason_str);
+			}
 			xfree(select_reason_str);
 		}
 	}
 
 	if (node_ptr->arch) {
-		snprintf(tmp_line, sizeof(tmp_line), "Arch=%s ",
-			 node_ptr->arch);
+		if (json_flag) {
+			snprintf(tmp_line, sizeof(tmp_line), ",\"Arch\":\"%s\"",
+				 node_ptr->arch);
+		} else {
+			snprintf(tmp_line, sizeof(tmp_line), "Arch=%s ",
+				 node_ptr->arch);
+		}
 		xstrcat(out, tmp_line);
 	}
-	snprintf(tmp_line, sizeof(tmp_line), "CoresPerSocket=%u",
-		 node_ptr->cores);
+
+	if (json_flag) {
+		snprintf(tmp_line, sizeof(tmp_line), ",\"CoresPerSocket\":%u",
+			 node_ptr->cores);
+	} else {
+		snprintf(tmp_line, sizeof(tmp_line), "CoresPerSocket=%u",
+			 node_ptr->cores);
+	}
 	xstrcat(out, tmp_line);
-	if (one_liner)
+
+	if (json_flag)
+		;
+	else if (one_liner)
 		xstrcat(out, " ");
 	else
 		xstrcat(out, "\n   ");
@@ -465,7 +507,10 @@ slurm_sprint_node_table (node_info_t * node_ptr,
 		}
 		xfree(reason_str);
 	}
-	if (one_liner)
+
+	if (json_flag)
+		xstrcat(out, " }\n");
+	else if (one_liner)
 		xstrcat(out, "\n");
 	else
 		xstrcat(out, "\n\n");

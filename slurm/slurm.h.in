@@ -1983,7 +1983,7 @@ typedef struct node_info {
 	uint32_t tmp_disk;	/* configured MB of total disk in TMP_FS */
 	uint32_t weight;	/* arbitrary priority of node for scheduling */
 	char *tres_fmt_str;	/* str representing configured TRES on node */
-	char *version;		 /* Slurm version number */
+	char *version;		/* Slurm version number */
 } node_info_t;
 
 typedef struct node_info_msg {
@@ -3903,9 +3903,12 @@ extern void slurm_free_node_info_msg PARAMS(
  * IN out - file to write to
  * IN node_info_msg_ptr - node information message pointer
  * IN one_liner - print as a single line if true
+ * IN json_flag - if set, print using JSON format
+ * IN verbose - if set, print message header information
  */
 extern void slurm_print_node_info_msg PARAMS(
-	(FILE * out, node_info_msg_t * node_info_msg_ptr, int one_liner));
+	(FILE * out, node_info_msg_t * node_info_msg_ptr, int one_liner,
+	 int json_flag, int verbose));
 
 /*
  * slurm_print_node_table - output information about a specific Slurm nodes
@@ -3916,8 +3919,8 @@ extern void slurm_print_node_info_msg PARAMS(
  * IN one_liner - print as a single line if true
  */
 extern void slurm_print_node_table PARAMS(
-	(FILE * out, node_info_t * node_ptr,
-	 int node_scaling, int one_liner));
+	(FILE * out, node_info_t * node_ptr, int node_scaling, int one_liner,
+	 int json_flag));
 
 /*
  * slurm_sprint_node_table - output information about a specific Slurm nodes
@@ -3928,9 +3931,9 @@ extern void slurm_print_node_table PARAMS(
  * RET out - char * containing formatted output (must be freed after call)
  *           NULL is returned on failure.
  */
-extern char *slurm_sprint_node_table PARAMS((node_info_t * node_ptr,
-					     int node_scaling,
-					     int one_liner));
+extern char *slurm_sprint_node_table PARAMS(
+	(node_info_t * node_ptr, int node_scaling, int one_liner,
+	 int json_flag));
 
 /*
  * slurm_init_update_node_msg - initialize node update message
