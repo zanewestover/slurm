@@ -397,7 +397,7 @@ Valid <operator> values include:
 Set \fIQosLevel\fP to the specified value. \fBNote:\fR the QOS that can be used
 at a given account in the hierarchy are inherited by the children of that account.
 By assigning QOS with the \fB=\fR sign only the assigned QOS can be used by the
-account and its childern.
+account and its children.
 .TP
 \fB+=\fR
 Add the specified <qos> value to the current \fIQosLevel\fP. The account will
@@ -674,8 +674,7 @@ Type of machine, current classifications are capability and capacity.
 .TP
 \fIFlags\fP=<flag list>
 Comma separated list of Attributes for a particular cluster.  Current
-Flags include AIX, BGL, BGP, BGQ, Bluegene, CrayXT, FrontEnd, MultipleSlurmd,
-and SunConstellation
+Flags include AIX, BGL, BGP, BGQ, Bluegene, CrayXT, FrontEnd, and MultipleSlurmd
 
 .TP
 \fIName\fP=<name>
@@ -1019,7 +1018,11 @@ The id of the QOS.
 Maximum number of TRES minutes each job is able to use.
 
 .TP
-\fIMaxTRESperJob\fP
+\fIMaxTRESPerAccount\fP
+Maximum number of TRES each account is able to use.
+
+.TP
+\fIMaxTRESPerJob\fP
 Maximum number of TRES each job is able to use.
 
 .TP
@@ -1031,7 +1034,11 @@ Maximum number of TRES each node in a job allocation can use.
 Maximum number of TRES each user is able to use.
 
 .TP
-\fIMaxJobs\fP
+\fIMaxJobsPerAccount\fP
+Maximum number of jobs each account is allowed to run at one time.
+
+.TP
+\fIMaxJobsPerUser\fP
 Maximum number of jobs each user is allowed to run at one time.
 
 .TP
@@ -1040,7 +1047,11 @@ Minimum number of TRES each job running under this QOS must request.
 Otherwise the job will pend until modified.
 
 .TP
-\fIMaxSubmitJobs\fP
+\fIMaxSubmitJobsPerAccount\fP
+Maximum number of jobs pending or running state at any time per account.
+
+.TP
+\fIMaxSubmitJobsPerUser\fP
 Maximum number of jobs pending or running state at any time per user.
 
 .TP
@@ -1156,6 +1167,11 @@ To clear a previously set value use the modify command with a new
 value of \-1.
 
 .TP
+\fIMaxTRESPerAccount\fP
+Maximum number of TRES each account is able to use.
+To clear a previously set value use the modify command with a new value of \-1.
+
+.TP
 \fIMaxTRESPerJob\fP
 Maximum number of TRES each job is able to use.
 To clear a previously set value use the modify command with a new
@@ -1172,12 +1188,22 @@ Maximum number of TRES each user is able to use.
 To clear a previously set value use the modify command with a new value of \-1.
 
 .TP
-\fIMaxJobs\fP
+\fIMaxJobsPerAccount\fP
+Maximum number of jobs each account is allowed to run at one time.
+To clear a previously set value use the modify command with a new value of \-1.
+
+.TP
+\fIMaxJobsPerUser\fP
 Maximum number of jobs each user is allowed to run at one time.
 To clear a previously set value use the modify command with a new value of \-1.
 
 .TP
-\fIMaxSubmitJobs\fP
+\fIMaxSubmitJobsPerAccount\fP
+Maximum number of jobs pending or running state at any time per account.
+To clear a previously set value use the modify command with a new value of \-1.
+
+.TP
+\fIMaxSubmitJobsPerUser\fP
 Maximum number of jobs pending or running state at any time per user.
 To clear a previously set value use the modify command with a new value of \-1.
 

@@ -117,7 +117,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_aix.m4 \
 	$(top_srcdir)/auxdir/x_ac_blcr.m4 \
 	$(top_srcdir)/auxdir/x_ac_bluegene.m4 \
-	$(top_srcdir)/auxdir/x_ac_cflags.m4 \
 	$(top_srcdir)/auxdir/x_ac_cray.m4 \
 	$(top_srcdir)/auxdir/x_ac_curl.m4 \
 	$(top_srcdir)/auxdir/x_ac_databases.m4 \
@@ -146,7 +145,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_setproctitle.m4 \
 	$(top_srcdir)/auxdir/x_ac_sgi_job.m4 \
 	$(top_srcdir)/auxdir/x_ac_slurm_ssl.m4 \
-	$(top_srcdir)/auxdir/x_ac_sun_const.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -158,23 +156,25 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libcommon_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
-am__libcommon_la_SOURCES_DIST = cpu_frequency.c cpu_frequency.h \
-	assoc_mgr.c assoc_mgr.h xmalloc.c xmalloc.h xassert.c \
-	xassert.h xstring.c xstring.h xsignal.c xsignal.h strnatcmp.c \
-	strnatcmp.h forward.c forward.h msg_aggr.c msg_aggr.h \
-	strlcpy.c strlcpy.h list.c list.h xtree.c xtree.h xhash.c \
-	xhash.h net.c net.h log.c log.h cbuf.c cbuf.h safeopen.c \
-	safeopen.h bitstring.c bitstring.h mpi.c slurm_mpi.h pack.c \
-	pack.h parse_config.c parse_config.h parse_value.c \
-	parse_value.h parse_spec.c parse_spec.h plugin.c plugin.h \
-	plugrack.c plugrack.h power.c power.h print_fields.c \
-	print_fields.h read_config.c read_config.h node_select.c \
-	node_select.h env.c env.h fd.c fd.h slurm_cred.h slurm_cred.c \
-	slurm_errno.c slurm_ext_sensors.c slurm_ext_sensors.h \
-	slurm_priority.c slurm_priority.h slurm_protocol_api.c \
-	slurm_protocol_api.h slurm_protocol_pack.c \
-	slurm_protocol_pack.h slurm_protocol_util.c \
-	slurm_protocol_util.h slurm_protocol_socket_implementation.c \
+am__libcommon_la_SOURCES_DIST = assoc_mgr.c assoc_mgr.h \
+	cpu_frequency.c cpu_frequency.h file_bcast.c file_bcast.h \
+	knl.c knl.h xmalloc.c xmalloc.h xassert.c xassert.h xstring.c \
+	xstring.h xsignal.c xsignal.h strnatcmp.c strnatcmp.h \
+	forward.c forward.h msg_aggr.c msg_aggr.h strlcpy.c strlcpy.h \
+	list.c list.h xtree.c xtree.h xhash.c xhash.h net.c net.h \
+	log.c log.h cbuf.c cbuf.h safeopen.c safeopen.h bitstring.c \
+	bitstring.h mpi.c slurm_mpi.h pack.c pack.h parse_config.c \
+	parse_config.h parse_value.c parse_value.h parse_spec.c \
+	parse_spec.h plugin.c plugin.h plugrack.c plugrack.h power.c \
+	power.h print_fields.c print_fields.h read_config.c \
+	read_config.h node_select.c node_select.h env.c env.h fd.c \
+	fd.h slurm_cred.h slurm_cred.c slurm_errno.c \
+	slurm_ext_sensors.c slurm_ext_sensors.h slurm_mcs.c \
+	slurm_mcs.h slurm_priority.c slurm_priority.h \
+	slurm_protocol_api.c slurm_protocol_api.h \
+	slurm_protocol_pack.c slurm_protocol_pack.h \
+	slurm_protocol_util.c slurm_protocol_util.h \
+	slurm_protocol_socket_implementation.c \
 	slurm_protocol_socket_common.h slurm_protocol_common.h \
 	slurm_protocol_interface.h slurm_protocol_defs.c \
 	slurm_protocol_defs.h slurm_rlimits_info.h \
@@ -203,24 +203,25 @@ am__libcommon_la_SOURCES_DIST = cpu_frequency.c cpu_frequency.h \
 	proc_args.h slurm_strcasestr.c slurm_strcasestr.h node_conf.h \
 	node_conf.c gres.h gres.c entity.h entity.c layout.h layout.c \
 	layouts_mgr.h layouts_mgr.c mapping.c mapping.h \
-	xcgroup_read_config.c xcgroup_read_config.h callerid.c \
-	callerid.h
+	xcgroup_read_config.c xcgroup_read_config.h xlua.c xlua.h \
+	callerid.c callerid.h
 @HAVE_UNSETENV_FALSE@am__objects_1 = unsetenv.lo
-am_libcommon_la_OBJECTS = cpu_frequency.lo assoc_mgr.lo xmalloc.lo \
-	xassert.lo xstring.lo xsignal.lo strnatcmp.lo forward.lo \
-	msg_aggr.lo strlcpy.lo list.lo xtree.lo xhash.lo net.lo log.lo \
-	cbuf.lo safeopen.lo bitstring.lo mpi.lo pack.lo \
-	parse_config.lo parse_value.lo parse_spec.lo plugin.lo \
-	plugrack.lo power.lo print_fields.lo read_config.lo \
-	node_select.lo env.lo fd.lo slurm_cred.lo slurm_errno.lo \
-	slurm_ext_sensors.lo slurm_priority.lo slurm_protocol_api.lo \
-	slurm_protocol_pack.lo slurm_protocol_util.lo \
-	slurm_protocol_socket_implementation.lo slurm_protocol_defs.lo \
-	slurm_rlimits_info.lo slurmdb_defs.lo slurmdb_pack.lo \
-	slurmdbd_defs.lo working_cluster.lo uid.lo util-net.lo \
-	slurm_auth.lo slurm_acct_gather.lo slurm_accounting_storage.lo \
-	slurm_jobacct_gather.lo slurm_acct_gather_energy.lo \
-	slurm_acct_gather_profile.lo slurm_acct_gather_infiniband.lo \
+am_libcommon_la_OBJECTS = assoc_mgr.lo cpu_frequency.lo file_bcast.lo \
+	knl.lo xmalloc.lo xassert.lo xstring.lo xsignal.lo \
+	strnatcmp.lo forward.lo msg_aggr.lo strlcpy.lo list.lo \
+	xtree.lo xhash.lo net.lo log.lo cbuf.lo safeopen.lo \
+	bitstring.lo mpi.lo pack.lo parse_config.lo parse_value.lo \
+	parse_spec.lo plugin.lo plugrack.lo power.lo print_fields.lo \
+	read_config.lo node_select.lo env.lo fd.lo slurm_cred.lo \
+	slurm_errno.lo slurm_ext_sensors.lo slurm_mcs.lo \
+	slurm_priority.lo slurm_protocol_api.lo slurm_protocol_pack.lo \
+	slurm_protocol_util.lo slurm_protocol_socket_implementation.lo \
+	slurm_protocol_defs.lo slurm_rlimits_info.lo slurmdb_defs.lo \
+	slurmdb_pack.lo slurmdbd_defs.lo working_cluster.lo uid.lo \
+	util-net.lo slurm_auth.lo slurm_acct_gather.lo \
+	slurm_accounting_storage.lo slurm_jobacct_gather.lo \
+	slurm_acct_gather_energy.lo slurm_acct_gather_profile.lo \
+	slurm_acct_gather_infiniband.lo \
 	slurm_acct_gather_filesystem.lo slurm_jobcomp.lo \
 	slurm_route.lo slurm_time.lo slurm_topology.lo switch.lo \
 	arg_desc.lo malloc.lo getopt.lo getopt1.lo $(am__objects_1) \
@@ -229,7 +230,8 @@ am_libcommon_la_OBJECTS = cpu_frequency.lo assoc_mgr.lo xmalloc.lo \
 	parse_time.lo job_options.lo global_defaults.lo timers.lo \
 	stepd_api.lo write_labelled_message.lo proc_args.lo \
 	slurm_strcasestr.lo node_conf.lo gres.lo entity.lo layout.lo \
-	layouts_mgr.lo mapping.lo xcgroup_read_config.lo callerid.lo
+	layouts_mgr.lo mapping.lo xcgroup_read_config.lo xlua.lo \
+	callerid.lo
 am__EXTRA_libcommon_la_SOURCES_DIST = unsetenv.c unsetenv.h \
 	uthash/LICENSE uthash/README uthash/uthash.h
 libcommon_la_OBJECTS = $(am_libcommon_la_OBJECTS)
@@ -386,6 +388,7 @@ FREEIPMI_CPPFLAGS = @FREEIPMI_CPPFLAGS@
 FREEIPMI_LDFLAGS = @FREEIPMI_LDFLAGS@
 FREEIPMI_LIBS = @FREEIPMI_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
+GLIB_COMPILE_RESOURCES = @GLIB_COMPILE_RESOURCES@
 GLIB_GENMARSHAL = @GLIB_GENMARSHAL@
 GLIB_LIBS = @GLIB_LIBS@
 GLIB_MKENUMS = @GLIB_MKENUMS@
@@ -467,6 +470,8 @@ PAM_DIR = @PAM_DIR@
 PAM_LIBS = @PAM_LIBS@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 PMIX_CPPFLAGS = @PMIX_CPPFLAGS@
 PMIX_LDFLAGS = @PMIX_LDFLAGS@
 PMIX_LIBS = @PMIX_LIBS@
@@ -588,8 +593,10 @@ noinst_LTLIBRARIES = \
 	libspank.la
 
 libcommon_la_SOURCES = \
-	cpu_frequency.c cpu_frequency.h \
 	assoc_mgr.c assoc_mgr.h 	\
+	cpu_frequency.c cpu_frequency.h \
+	file_bcast.c file_bcast.h	\
+	knl.c knl.h			\
 	xmalloc.c xmalloc.h 		\
 	xassert.c xassert.h		\
 	xstring.c xstring.h		\
@@ -623,6 +630,8 @@ libcommon_la_SOURCES = \
 	slurm_cred.c			\
 	slurm_errno.c			\
 	slurm_ext_sensors.c slurm_ext_sensors.h \
+	slurm_mcs.c			\
+	slurm_mcs.h			\
 	slurm_priority.c		\
 	slurm_priority.h		\
 	slurm_protocol_api.c		\
@@ -688,6 +697,7 @@ libcommon_la_SOURCES = \
 	layouts_mgr.h layouts_mgr.c	\
 	mapping.c mapping.h		\
 	xcgroup_read_config.c xcgroup_read_config.h \
+	xlua.c xlua.h			\
 	callerid.c callerid.h
 
 EXTRA_libcommon_la_SOURCES = \
@@ -806,6 +816,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/entity.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/env.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fd.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/file_bcast.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/forward.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt1.Plo@am__quote@
@@ -815,6 +826,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io_hdr.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/job_options.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/job_resources.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/knl.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/layout.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/layouts_mgr.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/list.Plo@am__quote@
@@ -852,6 +864,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_ext_sensors.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_jobacct_gather.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_jobcomp.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_mcs.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_priority.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_protocol_api.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/slurm_protocol_defs.Plo@am__quote@
@@ -882,6 +895,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xassert.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xcgroup_read_config.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xhash.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xlua.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xmalloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xsignal.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xstring.Plo@am__quote@

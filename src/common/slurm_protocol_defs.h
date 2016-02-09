@@ -89,6 +89,8 @@
 	((_X->job_state & JOB_STATE_BASE) == JOB_TIMEOUT)
 #define IS_JOB_NODE_FAILED(_X)		\
 	((_X->job_state & JOB_STATE_BASE) == JOB_NODE_FAIL)
+#define IS_JOB_DEADLINE(_X)		\
+	((_X->job_state & JOB_STATE_BASE) == JOB_DEADLINE)
 
 /* Derived job states */
 #define IS_JOB_COMPLETING(_X)		\
@@ -140,8 +142,6 @@
 	(_X->node_state & NODE_STATE_NO_RESPOND)
 #define IS_NODE_POWER_SAVE(_X)		\
 	(_X->node_state & NODE_STATE_POWER_SAVE)
-#define IS_NODE_POWER_UP(_X)		\
-	(_X->node_state & NODE_STATE_POWER_UP)
 #define IS_NODE_FAIL(_X)		\
 	(_X->node_state & NODE_STATE_FAIL)
 #define IS_NODE_POWER_UP(_X)		\
@@ -150,6 +150,9 @@
 	(_X->node_state & NODE_STATE_MAINT)
 
 #define THIS_FILE ((strrchr(__FILE__, '/') ?: __FILE__ - 1) + 1)
+#define INFO_LINE(fmt, ...) \
+	info("%s (%s:%d) "fmt, __FUNCTION__, THIS_FILE, __LINE__, ##__VA_ARGS__);
+
 #define YEAR_MINUTES 365 * 24 * 60
 
 /* These defines have to be here to avoid circular dependancy with
@@ -190,7 +193,7 @@ typedef enum {
 	RESPONSE_SHUTDOWN,
 	REQUEST_PING,
 	REQUEST_CONTROL,
-	REQUEST_SET_DEBUG_LEVEL,
+	REQUEST_SET_DEBUG_LEVEL,	/* 1010 */
 	REQUEST_HEALTH_CHECK,
 	REQUEST_TAKEOVER,
 	REQUEST_SET_SCHEDLOG_LEVEL,
@@ -200,7 +203,7 @@ typedef enum {
 	REQUEST_ACCT_GATHER_UPDATE,
 	RESPONSE_ACCT_GATHER_UPDATE,
 	REQUEST_ACCT_GATHER_ENERGY,
-	RESPONSE_ACCT_GATHER_ENERGY,
+	RESPONSE_ACCT_GATHER_ENERGY,	/* 1020 */
 	REQUEST_LICENSE_INFO,
 	RESPONSE_LICENSE_INFO,
 
@@ -262,7 +265,7 @@ typedef enum {
 	RESPONSE_CREATE_RESERVATION,
 	REQUEST_DELETE_RESERVATION,
 	REQUEST_UPDATE_RESERVATION,
-	REQUEST_UPDATE_BLOCK,
+	REQUEST_UPDATE_BLOCK,		/* 3010 */
 	REQUEST_UPDATE_FRONT_END,
 	REQUEST_UPDATE_LAYOUT,
 	REQUEST_UPDATE_POWERCAP,
@@ -276,7 +279,7 @@ typedef enum {
 	RESPONSE_CANCEL_JOB,
 	REQUEST_JOB_RESOURCE,
 	RESPONSE_JOB_RESOURCE,
-	REQUEST_JOB_ATTACH,
+	REQUEST_JOB_ATTACH,		/* 4010 */
 	RESPONSE_JOB_ATTACH,
 	REQUEST_JOB_WILL_RUN,
 	RESPONSE_JOB_WILL_RUN,
@@ -286,7 +289,7 @@ typedef enum {
 	RESPONSE_JOB_ALLOCATION_INFO_LITE,
 	REQUEST_UPDATE_JOB_TIME,
 	REQUEST_JOB_READY,
-	RESPONSE_JOB_READY,
+	RESPONSE_JOB_READY,		/* 4020 */
 	REQUEST_JOB_END_TIME,
 	REQUEST_JOB_NOTIFY,
 	REQUEST_JOB_SBCAST_CRED,
@@ -301,7 +304,7 @@ typedef enum {
 	REQUEST_UPDATE_JOB_STEP,
 	DEFUNCT_RESPONSE_COMPLETE_JOB_STEP, /* DEFUNCT */
 	REQUEST_CHECKPOINT,
-	RESPONSE_CHECKPOINT,
+	RESPONSE_CHECKPOINT,		/* 5010 */
 	REQUEST_CHECKPOINT_COMP,
 	REQUEST_CHECKPOINT_TASK_COMP,
 	RESPONSE_CHECKPOINT_COMP,
@@ -311,7 +314,7 @@ typedef enum {
 	REQUEST_COMPLETE_JOB_ALLOCATION,
 	REQUEST_COMPLETE_BATCH_SCRIPT,
 	REQUEST_JOB_STEP_STAT,
-	RESPONSE_JOB_STEP_STAT,
+	RESPONSE_JOB_STEP_STAT,		/* 5020 */
 	REQUEST_STEP_LAYOUT,
 	RESPONSE_STEP_LAYOUT,
 	REQUEST_JOB_REQUEUE,
@@ -321,14 +324,15 @@ typedef enum {
 	REQUEST_JOB_STEP_PIDS,
 	RESPONSE_JOB_STEP_PIDS,
 	REQUEST_FORWARD_DATA,
-	REQUEST_COMPLETE_BATCH_JOB,
+	REQUEST_COMPLETE_BATCH_JOB,	/* 5030 */
 	REQUEST_SUSPEND_INT,
-	REQUEST_KILL_JOB,       /* 5032 */
+	REQUEST_KILL_JOB,		/* 5032 */
 	REQUEST_KILL_JOBSTEP,
 	RESPONSE_JOB_ARRAY_ERRORS,
 	REQUEST_NETWORK_CALLERID,
 	RESPONSE_NETWORK_CALLERID,
 	REQUEST_STEP_COMPLETE_AGGR,
+	REQUEST_TOP_JOB,		/* 5038 */
 
 	REQUEST_LAUNCH_TASKS = 6001,
 	RESPONSE_LAUNCH_TASKS,
@@ -339,7 +343,7 @@ typedef enum {
 	REQUEST_REATTACH_TASKS,
 	RESPONSE_REATTACH_TASKS,
 	REQUEST_KILL_TIMELIMIT,
-	REQUEST_SIGNAL_JOB,
+	REQUEST_SIGNAL_JOB,		/* 6010 */
 	REQUEST_TERMINATE_JOB,
 	MESSAGE_EPILOG_COMPLETE,
 	REQUEST_ABORT_JOB,	/* job shouldn't be running, kill it without
@@ -350,7 +354,7 @@ typedef enum {
 
 	REQUEST_LAUNCH_PROLOG,
 	REQUEST_COMPLETE_PROLOG,
-	RESPONSE_PROLOG_EXECUTING,
+	RESPONSE_PROLOG_EXECUTING,	/* 6019 */
 
 	SRUN_PING = 7001,
 	SRUN_TIMEOUT,
@@ -538,7 +542,7 @@ typedef struct priority_factors_object {
 	char    **tres_names;	/* packed as assoc_mgr_tres_names[] */
 	double   *tres_weights; /* PriorityWeightTRES weights as an array */
 
-	uint16_t nice;
+	uint32_t nice;
 } priority_factors_object_t;
 
 typedef struct priority_factors_request_msg {
@@ -676,6 +680,7 @@ typedef struct epilog_complete_msg {
 } epilog_complete_msg_t;
 
 typedef struct reboot_msg {
+	char *features;
 	char *node_list;
 } reboot_msg_t;
 
@@ -1306,6 +1311,7 @@ extern void slurm_free_checkpoint_task_comp_msg(checkpoint_task_comp_msg_t *msg)
 extern void slurm_free_checkpoint_resp_msg(checkpoint_resp_msg_t *msg);
 extern void slurm_free_suspend_msg(suspend_msg_t *msg);
 extern void slurm_free_suspend_int_msg(suspend_int_msg_t *msg);
+extern void slurm_free_top_job_msg(top_job_msg_t *msg);
 extern void slurm_free_update_step_msg(step_update_request_msg_t * msg);
 extern void slurm_free_resource_allocation_response_msg_members (
 	resource_allocation_response_msg_t * msg);
@@ -1421,6 +1427,10 @@ extern char *reservation_flags_string(uint32_t flags);
 /* Functions to convert burst buffer flags between strings and numbers */
 extern char *   slurm_bb_flags2str(uint32_t bb_flags);
 extern uint32_t slurm_bb_str2flags(char *bb_str);
+
+/* Function to convert enforce type flags between strings and numbers */
+extern int parse_part_enforce_type(char *enforce_part_type, uint16_t *param);
+extern char * parse_part_enforce_type_2str (uint16_t type);
 
 /* Given a protocol opcode return its string
  * description mapping the slurm_msg_type_t

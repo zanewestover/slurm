@@ -93,6 +93,13 @@
 
 #include "src/sbatch/opt.h"
 
+enum wrappers {
+	WRPR_START,
+	WRPR_BSUB,
+	WRPR_PBS,
+	WRPR_CNT
+};
+
 /* generic OPT_ definitions -- mainly for use with env vars  */
 #define OPT_NONE        0x00
 #define OPT_INT         0x01
@@ -191,6 +198,8 @@
 #define LONG_OPT_THREAD_SPEC     0x159
 #define LONG_OPT_PRIORITY        0x160
 #define LONG_OPT_KILL_INV_DEP    0x161
+#define LONG_OPT_MCS_LABEL       0x165
+#define LONG_OPT_DEADLINE        0x166
 
 /*---- global variables, defined in opt.h ----*/
 opt_t opt;
@@ -210,8 +219,12 @@ static void _opt_default(void);
 static void _opt_batch_script(const char *file, const void *body, int size);
 
 /* set options from pbs batch script */
-static void _opt_pbs_batch_script(const char *file, const void *body, int size,
-				  int argc, char **argv);
+static bool _opt_wrpr_batch_script(const char *file, const void *body, int size,
+				  int argc, char **argv, int magic);
+
+/* Wrapper functions */
+static void _set_pbs_options(int argc, char **argv);
+static void _set_bsub_options(int argc, char **argv);
 
 /* set options based upon env vars  */
 static void _opt_env(void);
@@ -228,9 +241,8 @@ static void _process_env_var(env_vars_t *e, const char *val);
 static uint16_t _parse_pbs_mail_type(const char *arg);
 
 static void  _usage(void);
-static  void _fullpath(char **filename, const char *cwd);
+static void _fullpath(char **filename, const char *cwd);
 static void _set_options(int argc, char **argv);
-static void _set_pbs_options(int argc, char **argv);
 static void _parse_pbs_resource_list(char *rl);
 
 /*---[ end forward declarations of static functions ]---------------------*/
@@ -407,11 +419,13 @@ static void _opt_default()
 	opt.ckpt_interval_str = NULL;
 	opt.ckpt_dir = slurm_get_checkpoint_dir();
 
-	opt.nice = 0;
+	opt.nice = NO_VAL;
 	opt.priority = 0;
 
 	opt.test_only   = false;
 	opt.kill_invalid_dep = 0;
+
+	opt.mcs_label		= NULL;
 }
 
 /*---[ env var processing ]-----------------------------------------------*/
@@ -611,9 +625,11 @@ _process_env_var(env_vars_t *e, const char *val)
 
 	case OPT_EXCLUSIVE:
 		if (val[0] == '\0') {
-			opt.shared = 0;
+			opt.shared = JOB_SHARED_NONE;
 		} else if (!strcasecmp(val, "user")) {
-			opt.shared = 2;
+			opt.shared = JOB_SHARED_USER;
+		} else if (!strcasecmp(val, "mcs")) {
+			opt.shared = JOB_SHARED_MCS;
 		} else {
 			error("\"%s=%s\" -- invalid value, ignoring...",
 			      e->var, val);
@@ -738,6 +754,7 @@ static struct option long_options[] = {
 	{"contiguous",    no_argument,       0, LONG_OPT_CONT},
 	{"cores-per-socket", required_argument, 0, LONG_OPT_CORESPERSOCKET},
 	{"cpu-freq",         required_argument, 0, LONG_OPT_CPU_FREQ},
+	{"deadline",      required_argument, 0, LONG_OPT_DEADLINE},
 	{"exclusive",     optional_argument, 0, LONG_OPT_EXCLUSIVE},
 	{"export",        required_argument, 0, LONG_OPT_EXPORT},
 	{"export-file",   required_argument, 0, LONG_OPT_EXPORT_FILE},
@@ -751,6 +768,7 @@ static struct option long_options[] = {
 	{"linux-image",   required_argument, 0, LONG_OPT_LINUX_IMAGE},
 	{"mail-type",     required_argument, 0, LONG_OPT_MAIL_TYPE},
 	{"mail-user",     required_argument, 0, LONG_OPT_MAIL_USER},
+	{"mcs-label",     required_argument, 0, LONG_OPT_MCS_LABEL},
 	{"mem",           required_argument, 0, LONG_OPT_MEM},
 	{"mem-per-cpu",   required_argument, 0, LONG_OPT_MEM_PER_CPU},
 	{"mem_bind",      required_argument, 0, LONG_OPT_MEM_BIND},
@@ -910,11 +928,21 @@ char *process_options_first_pass(int argc, char **argv)
 int process_options_second_pass(int argc, char *argv[], const char *file,
 				const void *script_body, int script_size)
 {
+	int i;
+
 	/* set options from batch script */
 	_opt_batch_script(file, script_body, script_size);
 
-	/* set options from pbs batch script */
-	_opt_pbs_batch_script(file, script_body, script_size, argc, argv);
+	for (i = WRPR_START + 1; i < WRPR_CNT; i++) {
+		/* Convert command from batch script to sbatch command */
+		bool stop = _opt_wrpr_batch_script(file, script_body,
+						   script_size, argc, argv, i);
+
+		if (stop) {
+			break;
+		}
+
+	}
 
 	/* set options from env vars */
 	_opt_env();
@@ -961,7 +989,7 @@ static char *_next_line(const void *buf, int size, void **state)
 	while ((*ptr != '\n') && (ptr < ((char *)buf+size)))
 		ptr++;
 
-	line = xstrndup(current, (ptr-current));
+	line = xstrndup(current, ptr-current);
 
 	/*
 	 *  Advance state past newline
@@ -986,7 +1014,7 @@ static char *
 _get_argument(const char *file, int lineno, const char *line, int *skipped)
 {
 	const char *ptr;
-	char argument[BUFSIZ];
+	char *argument = NULL;
 	char q_char = '\0';
 	bool escape_flag = false;
 	bool quoted = false;
@@ -1006,7 +1034,6 @@ _get_argument(const char *file, int lineno, const char *line, int *skipped)
 	/* copy argument into "argument" buffer, */
 	i = 0;
 	while ((quoted || !isspace(*ptr)) && *ptr != '\n' && *ptr != '\0') {
-
 		if (escape_flag) {
 			escape_flag = false;
 		} else if (*ptr == '\\') {
@@ -1028,9 +1055,10 @@ _get_argument(const char *file, int lineno, const char *line, int *skipped)
 			break;
 		}
 
+		if (!argument)
+			argument = xmalloc(strlen(line) + 1);
 		argument[i++] = *(ptr++);
 	}
-	argument[i] = '\0';
 
 	if (quoted) /* Unmatched quote */
 		fatal("%s: line %d: Unmatched `%c` in [%s]",
@@ -1038,7 +1066,7 @@ _get_argument(const char *file, int lineno, const char *line, int *skipped)
 
 	*skipped = ptr - line;
 
-	return (i > 0 ? xstrdup (argument) : NULL);
+	return argument;
 }
 
 /*
@@ -1118,15 +1146,17 @@ static void _opt_batch_script(const char * file, const void *body, int size)
 }
 
 /*
- * set pbs options from batch script
+ * set wrapper (ie. pbs, bsub) options from batch script
  *
  * Build an argv-style array of options from the script "body",
  * then pass the array to _set_options for() further parsing.
  */
-static void _opt_pbs_batch_script(const char *file, const void *body, int size,
-				  int cmd_argc, char **cmd_argv)
+static bool _opt_wrpr_batch_script(const char *file, const void *body,
+				     int size, int cmd_argc, char **cmd_argv,
+				     int magic)
 {
-	char *magic_word = "#PBS";
+	char *magic_word;
+	void (*wrp_func) (int,char**) = NULL;
 	int magic_word_len;
 	int argc;
 	char **argv;
@@ -1136,15 +1166,32 @@ static void _opt_pbs_batch_script(const char *file, const void *body, int size,
 	char *ptr;
 	int skipped = 0;
 	int lineno = 0;
+	int non_comments = 0;
 	int i;
+	bool found = false;
 
 	if (ignore_pbs)
-		return;
+		return false;
 	if (getenv("SBATCH_IGNORE_PBS"))
-		return;
+		return false;
 	for (i = 0; i < cmd_argc; i++) {
 		if (!strcmp(cmd_argv[i], "--ignore-pbs"))
-			return;
+			return false;
+	}
+
+	/* Check what command it is */
+	switch (magic) {
+	case WRPR_BSUB:
+		magic_word = "#BSUB";
+		wrp_func = _set_bsub_options;
+		break;
+	case WRPR_PBS:
+		magic_word = "#PBS";
+		wrp_func = _set_pbs_options;
+		break;
+
+	default:
+		return false;
 	}
 
 	magic_word_len = strlen(magic_word);
@@ -1156,28 +1203,50 @@ static void _opt_pbs_batch_script(const char *file, const void *body, int size,
 	while ((line = _next_line(body, size, &state)) != NULL) {
 		lineno++;
 		if (strncmp(line, magic_word, magic_word_len) != 0) {
+			if (line[0] != '#')
+				non_comments++;
 			xfree(line);
+			if (non_comments > 100)
+				break;
 			continue;
 		}
 
+		/* Set found to be true since we found a valid command */
+		found = true;
 		/* this line starts with the magic word */
 		ptr = line + magic_word_len;
 		while ((option = _get_argument(file, lineno, ptr, &skipped))) {
 			debug2("Found in script, argument \"%s\"", option);
 			argc += 1;
 			xrealloc(argv, sizeof(char*) * argc);
+
+			/* Only check the even options here (they are
+			 * the - options) */
+			if (magic == WRPR_BSUB && !(argc%2)) {
+				/* Since Slurm doesn't allow long
+				 * names with a single '-' we must
+				 * translate before hand.
+				 */
+				if (!xstrcmp("-cwd", option)) {
+					xfree(option);
+					option = xstrdup("-c");
+				}
+			}
+
 			argv[argc-1] = option;
 			ptr += skipped;
 		}
 		xfree(line);
 	}
 
-	if (argc > 0)
-		_set_pbs_options(argc, argv);
+	if (argc > 0 && wrp_func != NULL)
+		wrp_func(argc, argv);
 
 	for (i = 1; i < argc; i++)
 		xfree(argv[i]);
 	xfree(argv);
+
+	return found;
 }
 
 static void _set_options(int argc, char **argv)
@@ -1378,11 +1447,21 @@ static void _set_options(int argc, char **argv)
 		case LONG_OPT_CONT:
 			opt.contiguous = true;
 			break;
+		case LONG_OPT_DEADLINE:
+			opt.deadline = parse_time(optarg, 0);
+			if (errno == ESLURM_INVALID_TIME_VALUE) {
+				error("Invalid deadline specification %s",
+				       optarg);
+				exit(error_exit);
+			}
+			break;
 		case LONG_OPT_EXCLUSIVE:
 			if (optarg == NULL) {
-				opt.shared = 0;
+				opt.shared = JOB_SHARED_NONE;
 			} else if (!strcasecmp(optarg, "user")) {
-				opt.shared = 2;
+				opt.shared = JOB_SHARED_USER;
+			} else if (!strcasecmp(optarg, "mcs")) {
+				opt.shared = JOB_SHARED_MCS;
 			} else {
 				error("invalid exclusive option %s", optarg);
 				exit(error_exit);
@@ -1501,6 +1580,11 @@ static void _set_options(int argc, char **argv)
 			xfree(opt.mail_user);
 			opt.mail_user = xstrdup(optarg);
 			break;
+		case LONG_OPT_MCS_LABEL: {
+			xfree(opt.mcs_label);
+			opt.mcs_label = xstrdup(optarg);
+			break;
+		}
 		case LONG_OPT_BURST_BUFFER:
 			xfree(opt.burst_buffer);
 			opt.burst_buffer = xstrdup(optarg);
@@ -1510,11 +1594,6 @@ static void _set_options(int argc, char **argv)
 				opt.nice = strtol(optarg, NULL, 10);
 			else
 				opt.nice = 100;
-			if (abs(opt.nice) > NICE_OFFSET) {
-				error("Invalid nice value, must be between "
-				      "-%d and %d", NICE_OFFSET, NICE_OFFSET);
-				exit(error_exit);
-			}
 			if (opt.nice < 0) {
 				uid_t my_uid = getuid();
 				if ((my_uid != 0) &&
@@ -1728,7 +1807,7 @@ static void _set_options(int argc, char **argv)
 			opt.export_file = xstrdup(optarg);
 			break;
 		case LONG_OPT_CPU_FREQ:
-		        if (cpu_freq_verify_cmdline(optarg, &opt.cpu_freq_min,
+			if (cpu_freq_verify_cmdline(optarg, &opt.cpu_freq_min,
 					&opt.cpu_freq_max, &opt.cpu_freq_gov))
 				error("Invalid --cpu-freq argument: %s. "
 						"Ignored", optarg);
@@ -1799,6 +1878,116 @@ static void _proc_get_user_env(char *optarg)
 		opt.get_user_env_mode = 1;
 	else if ((end_ptr[0] == 'l') || (end_ptr[0] == 'L'))
 		opt.get_user_env_mode = 2;
+}
+static void _set_bsub_options(int argc, char **argv) {
+
+	int opt_char, option_index = 0;
+	char *bsub_opt_string = "+c:e:J:m:M:n:o:q:W:x";
+	char *tmp_str, *char_ptr;
+
+	struct option bsub_long_options[] = {
+		{"cwd", required_argument, 0, 'c'},
+		{"error_file", required_argument, 0, 'e'},
+		{"job_name", required_argument, 0, 'J'},
+		{"hostname", required_argument, 0, 'm'},
+		{"memory_limit", required_argument, 0, 'M'},
+		{"memory_limit", required_argument, 0, 'M'},
+		{"output_file", required_argument, 0, 'o'},
+		{"queue_name", required_argument, 0, 'q'},
+		{"time", required_argument, 0, 'W'},
+		{"exclusive", no_argument, 0, 'x'},
+		{NULL, 0, 0, 0}
+	};
+
+	optind = 0;
+	while ((opt_char = getopt_long(argc, argv, bsub_opt_string,
+				       bsub_long_options, &option_index))
+	       != -1) {
+		switch (opt_char) {
+		case 'c':
+			xfree(opt.cwd);
+			if (is_full_path(optarg))
+				opt.cwd = xstrdup(optarg);
+			else
+				opt.cwd = make_full_path(optarg);
+			break;
+		case 'e':
+			xfree(opt.efname);
+			if (strcasecmp(optarg, "none") == 0)
+				opt.efname = xstrdup("/dev/null");
+			else
+				opt.efname = xstrdup(optarg);
+			break;
+		case 'J':
+			opt.job_name = xstrdup(optarg);
+			break;
+		case 'm':
+			/* Since BSUB requires a list of space
+			   sperated host we need to replace the spaces
+			   with , */
+			tmp_str = xstrdup(optarg);
+			char_ptr = strstr(tmp_str, " ");
+
+			while (char_ptr != NULL) {
+				*char_ptr = ',';
+				char_ptr = strstr(tmp_str, " ");
+			}
+			opt.nodelist = xstrdup(tmp_str);
+			xfree(tmp_str);
+			break;
+		case 'M':
+			opt.mem_per_cpu = xstrntol(optarg,
+						   NULL, sizeof(optarg), 10);
+			break;
+		case 'n':
+			opt.ntasks_set = true;
+			/* Since it is value in bsub to give a min and
+			 * max task count we will only read the max if
+			 * it exists.
+			 */
+			char_ptr = strstr(optarg, ",");
+			if (char_ptr) {
+				char_ptr++;
+				if (!char_ptr[0]) {
+					error("#BSUB -n format not correct "
+					      "given: '%s'",
+					      optarg);
+					exit(error_exit);
+				}
+			} else
+				char_ptr = optarg;
+
+			opt.ntasks =
+				parse_int("number of tasks", char_ptr, true);
+
+			break;
+		case 'o':
+			xfree(opt.ofname);
+			opt.ofname = xstrdup(optarg);
+			break;
+		case 'q':
+			opt.partition = xstrdup(optarg);
+			break;
+		case 'W':
+			opt.time_limit = xstrntol(optarg, NULL,
+						  sizeof(optarg), 10);
+			break;
+		case 'x':
+			opt.shared = 0;
+			break;
+		default:
+			error("Unrecognized command line parameter %c",
+			      opt_char);
+			exit(error_exit);
+		}
+	}
+
+
+	if (optind < argc) {
+		error("Invalid argument: %s", argv[optind]);
+		exit(error_exit);
+	}
+
 }
 
 static void _set_pbs_options(int argc, char **argv)
@@ -1904,11 +2093,6 @@ static void _set_pbs_options(int argc, char **argv)
 				opt.nice = strtol(optarg, NULL, 10);
 			else
 				opt.nice = 100;
-			if (abs(opt.nice) > NICE_OFFSET) {
-				error("Invalid nice value, must be between "
-				      "-%d and %d", NICE_OFFSET, NICE_OFFSET);
-				exit(error_exit);
-			}
 			if (opt.nice < 0) {
 				uid_t my_uid = getuid();
 				if ((my_uid != 0) &&
@@ -2215,17 +2399,12 @@ static void _parse_pbs_resource_list(char *rl)
 				xfree(temp);
 			}
 		} else if (!strncmp(rl+i, "nice=", 5)) {
-			i+=5;
+			i += 5;
 			temp = _get_pbs_option_value(rl, &i, ',');
 			if (temp)
 				opt.nice = strtol(temp, NULL, 10);
 			else
 				opt.nice = 100;
-			if (abs(opt.nice) > NICE_OFFSET) {
-				error("Invalid nice value, must be between "
-				      "-%d and %d", NICE_OFFSET, NICE_OFFSET);
-				exit(error_exit);
-			}
 			if (opt.nice < 0) {
 				uid_t my_uid = getuid();
 				if ((my_uid != 0) &&
@@ -2246,7 +2425,7 @@ static void _parse_pbs_resource_list(char *rl)
 			_parse_pbs_nodes_opts(temp);
 			xfree(temp);
 		} else if (!strncmp(rl+i, "opsys=", 6)) {
- 			i+=6;
+			i+=6;
 			_get_next_pbs_option(rl, &i);
 		} else if (!strncmp(rl+i, "other=", 6)) {
 			i+=6;
@@ -2344,6 +2523,49 @@ static bool _opt_verify(void)
 	_fullpath(&opt.efname, opt.cwd);
 	_fullpath(&opt.ifname, opt.cwd);
 	_fullpath(&opt.ofname, opt.cwd);
+
+	if (!opt.nodelist) {
+		if ((opt.nodelist = xstrdup(getenv("SLURM_HOSTFILE")))) {
+			/* make sure the file being read in has a / in
+			   it to make sure it is a file in the
+			   valid_node_list function */
+			if (!strstr(opt.nodelist, "/")) {
+				char *add_slash = xstrdup("./");
+				xstrcat(add_slash, opt.nodelist);
+				xfree(opt.nodelist);
+				opt.nodelist = add_slash;
+			}
+			opt.distribution &= SLURM_DIST_STATE_FLAGS;
+			opt.distribution |= SLURM_DIST_ARBITRARY;
+			if (!_valid_node_list(&opt.nodelist)) {
+				error("Failure getting NodeNames from "
+				      "hostfile");
+				exit(error_exit);
+			} else {
+				debug("loaded nodes (%s) from hostfile",
+				      opt.nodelist);
+			}
+		}
+	} else {
+		if (!_valid_node_list(&opt.nodelist))
+			exit(error_exit);
+	}
+
+	if (opt.nodelist) {
+		int hl_cnt;
+		hostlist_t hl = hostlist_create(opt.nodelist);
+
+		if (!hl) {
+			error("memory allocation failure");
+			exit(error_exit);
+		}
+		hostlist_uniq(hl);
+		hl_cnt = hostlist_count(hl);
+		if (opt.nodes_set)
+			opt.min_nodes = MAX(hl_cnt, opt.min_nodes);
+		else
+			opt.min_nodes = hl_cnt;
+	}
 
 	if (cluster_flags & CLUSTER_FLAG_BGQ)
 		bg_figure_nodes_tasks(&opt.min_nodes, &opt.max_nodes,
@@ -2509,33 +2731,6 @@ static bool _opt_verify(void)
 
 	} /* else if (opt.ntasks_set && !opt.nodes_set) */
 
-	if (!opt.nodelist) {
-		if ((opt.nodelist = xstrdup(getenv("SLURM_HOSTFILE")))) {
-			/* make sure the file being read in has a / in
-			   it to make sure it is a file in the
-			   valid_node_list function */
-			if (!strstr(opt.nodelist, "/")) {
-				char *add_slash = xstrdup("./");
-				xstrcat(add_slash, opt.nodelist);
-				xfree(opt.nodelist);
-				opt.nodelist = add_slash;
-			}
-			opt.distribution &= SLURM_DIST_STATE_FLAGS;
-			opt.distribution |= SLURM_DIST_ARBITRARY;
-			if (!_valid_node_list(&opt.nodelist)) {
-				error("Failure getting NodeNames from "
-				      "hostfile");
-				exit(error_exit);
-			} else {
-				debug("loaded nodes (%s) from hostfile",
-				      opt.nodelist);
-			}
-		}
-	} else {
-		if (!_valid_node_list(&opt.nodelist))
-			exit(error_exit);
-	}
-
 	/* set up the proc and node counts based on the arbitrary list
 	   of nodes */
 	if (((opt.distribution & SLURM_DIST_STATE_BASE) == SLURM_DIST_ARBITRARY)
@@ -2570,6 +2765,10 @@ static bool _opt_verify(void)
 		}
 		if (opt.time_min == 0)
 			opt.time_min = INFINITE;
+	}
+	if ((opt.deadline) && (opt.begin) && (opt.deadline < opt.begin)) {
+		error("Incompatible begin and deadline time specification");
+		exit(error_exit);
 	}
 
 	if (opt.ckpt_interval_str) {
@@ -2920,6 +3119,11 @@ static void _opt_list(void)
 		slurm_make_time_str(&opt.begin, time_str, sizeof(time_str));
 		info("begin             : %s", time_str);
 	}
+	if (opt.deadline) {
+		char time_str[32];
+		slurm_make_time_str(&opt.deadline, time_str, sizeof(time_str));
+		info("deadline          : %s", time_str);
+	}
 	info("array             : %s",
 	     opt.array_inx == NULL ? "N/A" : opt.array_inx);
 	info("cpu_freq_min      : %u", opt.cpu_freq_min);
@@ -2952,13 +3156,15 @@ static void _opt_list(void)
 	info("remote command    : `%s'", str);
 	info("power             : %s", power_flags_str(opt.power_flags));
 	info("wait              : %s", opt.wait ? "no" : "yes");
+	if (opt.mcs_label)
+		info("mcs-label         : %s",opt.mcs_label);
 	xfree(str);
 
 }
 
 static void _usage(void)
 {
- 	printf(
+	printf(
 "Usage: sbatch [-N nnodes] [-n ntasks]\n"
 "              [-c ncpus] [-r n] [-p partition] [--hold] [--parsable] [-t minutes]\n"
 "              [-D path] [--immediate] [--no-kill] [--overcommit]\n"
@@ -2987,7 +3193,7 @@ static void _usage(void)
 "              [--requeue] [--no-requeue] [--ntasks-per-node=n] [--propagate]\n"
 "              [--nodefile=file] [--nodelist=hosts] [--exclude=hosts]\n"
 "              [--network=type] [--mem-per-cpu=MB] [--qos=qos] [--gres=list]\n"
-"              [--mem_bind=...] [--reservation=name]\n"
+"              [--mem_bind=...] [--reservation=name] [--mcs-label=mcs]\n"
 "              [--cpu-freq=min[-max[:gov]] [--power=flags]\n"
 "              [--switches=max-switches{@max-time-to-wait}] [--reboot]\n"
 "              [--core-spec=cores] [--thread-spec=threads] [--bb=burst_buffer_spec]\n"
@@ -3015,6 +3221,8 @@ static void _help(void)
 "  -c, --cpus-per-task=ncpus   number of cpus required per task\n"
 
 "  -d, --dependency=type:jobid defer job until condition on jobid is satisfied\n"
+"      --deadline=time         remove the job if no ending possible before\n"
+"                              this deadline (start > (deadline - time[-min]))\n"
 "  -D, --workdir=directory     set working directory for batch script\n"
 "  -e, --error=err             file for batch script's standard error\n"
 "      --export[=names]        specify environment variables to export\n"
@@ -3037,6 +3245,7 @@ static void _help(void)
 "      --mail-type=type        notify on state change: BEGIN, END, FAIL or ALL\n"
 "      --mail-user=user        who to send email notification for job state\n"
 "                              changes\n"
+"      --mcs-label=mcs         mcs label if mcs plugin mcs/group is used\n"
 "  -n, --ntasks=ntasks         number of tasks to run\n"
 "      --nice[=value]          decrease scheduling priority by value\n"
 "      --no-requeue            if set, do not permit the job to be requeued\n"
@@ -3069,7 +3278,7 @@ static void _help(void)
 "  -v, --verbose               verbose mode (multiple -v's increase verbosity)\n"
 "  -W, --wait                  wait for completion of submitted job\n"
 "      --wckey=wckey           wckey to run job under\n"
-"      --wrap[=command string] wrap commmand string in a sh script and submit\n"
+"      --wrap[=command string] wrap command string in a sh script and submit\n"
 
 "\n"
 "Constraint options:\n"
@@ -3087,6 +3296,9 @@ static void _help(void)
 "Consumable resources related options:\n"
 "      --exclusive[=user]      allocate nodes in exclusive mode when\n"
 "                              cpu consumable resource is enabled\n"
+"      --exclusive[=mcs]       allocate nodes in exclusive mode when\n"
+"                              cpu consumable resource is enabled\n"
+"                              and mcs plugin is enabled\n"
 "      --mem-per-cpu=MB        maximum amount of real memory per allocated\n"
 "                              cpu required by the job.\n"
 "                              --mem >= --mem-per-cpu if --mem is specified.\n"

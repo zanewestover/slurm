@@ -122,13 +122,17 @@ typedef enum {
 	PRINT_MAXCU,
 	PRINT_MAXTM,
 	PRINT_MAXTRM,
+	PRINT_MAXTRMA,
 	PRINT_MAXT,
+	PRINT_MAXTA,
 	PRINT_MAXTN,
 	PRINT_MAXTU,
 	PRINT_MAXJ,
+	PRINT_MAXJA,
 	PRINT_MAXN,
 	PRINT_MAXNU,
 	PRINT_MAXS,
+	PRINT_MAXSA,
 	PRINT_MAXW,
 	PRINT_MINC,
 	PRINT_MINT,
@@ -337,6 +341,7 @@ extern slurmdb_cluster_rec_t *sacctmgr_find_cluster_from_list(
 extern slurmdb_wckey_rec_t *sacctmgr_find_wckey_from_list(
 	List wckey_list, char *user, char *name, char *cluster);
 
+extern void sacctmgr_initialize_g_tres_list(void);
 
 /* file_functions.c */
 extern int print_file_add_limits_to_line(char **line,

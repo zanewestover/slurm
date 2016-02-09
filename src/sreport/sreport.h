@@ -103,6 +103,7 @@ extern void *db_conn;
 extern uint32_t my_uid;
 extern int all_clusters_flag;
 extern slurmdb_report_sort_t sort_flag;
+extern char *cluster_flag;
 
 extern void slurmdb_report_print_time(print_field_t *field,
 			       uint64_t value, uint64_t total_time, int last);
@@ -115,5 +116,14 @@ extern int sort_assoc_dec(void *, void *);
 extern int sort_reservations_dec(void *, void *);
 
 extern int get_uint(char *in_value, uint32_t *out_value, char *type);
+
+/* Fills in cluster_tres_rec and tres_rec and validates tres_rec has
+ * allocated seconds.  As we still want to print a line if the usage
+ * is zero NULLs must be handled after the function is called.
+ */
+extern void sreport_set_tres_recs(slurmdb_tres_rec_t **cluster_tres_rec,
+				  slurmdb_tres_rec_t **tres_rec,
+				  List cluster_tres_list, List tres_list,
+				  slurmdb_tres_rec_t *tres_rec_in);
 
 #endif /* HAVE_SREPORT_H */

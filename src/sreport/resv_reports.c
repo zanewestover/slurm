@@ -100,6 +100,9 @@ static int _set_resv_cond(int *start, int argc, char *argv[],
 
 	if (!resv_cond->cluster_list)
 		resv_cond->cluster_list = list_create(slurm_destroy_char);
+	if (cluster_flag)
+		slurm_addto_char_list(resv_cond->cluster_list, cluster_flag);
+
 	for (i=(*start); i<argc; i++) {
 		end = parse_option_end(argv[i]);
 		if (!end)
@@ -173,6 +176,7 @@ static int _set_resv_cond(int *start, int argc, char *argv[],
 	(*start) = i;
 
 	if (!local_cluster_flag && !list_count(resv_cond->cluster_list)) {
+		/* Get the default Cluster since no cluster is specified */
 		char *temp = slurm_get_cluster_name();
 		if (temp)
 			list_append(resv_cond->cluster_list, temp);
@@ -405,8 +409,11 @@ static void _resv_tres_report(slurmdb_tres_rec_t *tres,
 	    !(tres_rec = list_find_first(tot_resv->tres_list,
 					 slurmdb_find_tres_in_list,
 					 &tres->id))) {
-		debug("error, no %s(%d) TRES in reservation %s",
-		      tres->type, tres->id, tot_resv->name);
+		debug2("error, no %s%s%s(%d) TRES in reservation %s",
+		       tres->type,
+		       tres->name ? "/" : "",
+		       tres->name ? tres->name : "",
+		       tres->id, tot_resv->name);
 	} else {
 		tres_alloc = tres_rec->count;
 		tres_alloc_secs = tres_rec->alloc_secs;

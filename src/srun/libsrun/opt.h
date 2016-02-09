@@ -113,6 +113,8 @@ typedef struct srun_options {
 	char *ckpt_interval_str;/* --checkpoint (string)	*/
 	char *ckpt_dir;  	/* --checkpoint-dir (string)   */
 	bool exclusive;		/* --exclusive			*/
+	char *bcast_file;	/* --bcast, copy executable to compute nodes */
+	bool bcast_flag;	/* --bcast, copy executable to compute nodes */
 	int  resv_port_cnt;	/* --resv_ports			*/
 	char *partition;	/* --partition=n,   -p n   	*/
 	enum task_dist_states
@@ -236,6 +238,8 @@ typedef struct srun_options {
 	uint32_t cpu_freq_max;  /* Maximum cpu frequency  */
 	uint32_t cpu_freq_gov;  /* cpu frequency governor */
 	uint8_t power_flags;	/* Power management options	*/
+	char *mcs_label;	/* mcs label if mcs plugin in use */
+	time_t deadline; 	/* --deadline                   */
 } opt_t;
 
 extern opt_t opt;

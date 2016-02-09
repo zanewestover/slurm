@@ -70,6 +70,7 @@
 #include "src/common/power.h"
 #include "src/common/read_config.h"
 #include "src/common/slurm_jobcomp.h"
+#include "src/common/slurm_mcs.h"
 #include "src/common/slurm_topology.h"
 #include "src/common/slurm_rlimits_info.h"
 #include "src/common/slurm_route.h"
@@ -338,8 +339,8 @@ static int _build_bitmaps(void)
 
 	/* scan all nodes and identify which are up, idle and
 	 * their configuration, resync DRAINED vs. DRAINING state */
-	for (i=0, node_ptr=node_record_table_ptr;
-	     i<node_record_count; i++, node_ptr++) {
+	for (i = 0, node_ptr = node_record_table_ptr;
+	     i < node_record_count; i++, node_ptr++) {
 		uint32_t drain_flag, job_cnt;
 
 		if (node_ptr->name[0] == '\0')
@@ -365,12 +366,20 @@ static int _build_bitmaps(void)
 			bit_set(node_ptr->config_ptr->node_bitmap, i);
 	}
 
+	/* Build active and available feature lists used for scheduling */
 	config_iterator = list_iterator_create(config_list);
 	while ((config_ptr = (struct config_record *)
 				      list_next(config_iterator))) {
-		build_config_feature_list(config_ptr);
+		build_avail_feature_list(config_ptr);
 	}
 	list_iterator_destroy(config_iterator);
+	build_active_feature_list2(-1, NULL);	/* Copy avail list to active */
+	for (i = 0, node_ptr = node_record_table_ptr;
+	     i < node_record_count; i++, node_ptr++) {
+		if (node_ptr->features_act)
+			build_active_feature_list2(i, node_ptr->features_act);
+	}
+	build_active_feature_list2(-2, NULL);	/* Log active list */
 
 	return error_code;
 }
@@ -1099,7 +1108,7 @@ int read_slurm_conf(int recover, bool reconfig)
 		}
 	}
 
-	/* NOTE: Run loadd_all_resv_state() before _restore_job_dependencies */
+	/* NOTE: Run load_all_resv_state() before _restore_job_dependencies */
 	_restore_job_dependencies();
 
 	/* sort config_list by weight for scheduling */
@@ -1143,6 +1152,10 @@ int read_slurm_conf(int recover, bool reconfig)
 
 	/* Sync select plugin with synchronized job/node/part data */
 	select_g_reconfigure();
+	if (reconfig) {
+		if (slurm_mcs_reconfig() != SLURM_SUCCESS)
+			fatal("Failed to reconfigure mcs plugin");
+	}
 
 	slurmctld_conf.last_update = time(NULL);
 	END_TIMER2("read_slurm_conf");
@@ -1197,7 +1210,7 @@ static int _restore_node_state(int recover,
 
 	for (i=0, old_node_ptr=old_node_table_ptr; i<old_node_record_count;
 	     i++, old_node_ptr++) {
-		uint32_t drain_flag = false, down_flag = false;
+		bool drain_flag = false, down_flag = false;
 		dynamic_plugin_data_t *tmp_select_nodeinfo;
 
 		node_ptr  = find_node_record(old_node_ptr->name);
@@ -1209,7 +1222,17 @@ static int _restore_node_state(int recover,
 			down_flag = true;
 		if (IS_NODE_DRAIN(node_ptr))
 			drain_flag = true;
-		node_ptr->node_state = old_node_ptr->node_state;
+		if ( IS_NODE_FUTURE(old_node_ptr) &&
+		    !IS_NODE_FUTURE(node_ptr)) {
+			/* Replace FUTURE state with new state, but preserve
+			 * state flags (e.g. POWER) */
+			node_ptr->node_state =
+				(node_ptr->node_state     & NODE_STATE_BASE) |
+				(old_node_ptr->node_state & NODE_STATE_FLAGS);
+		} else {
+			node_ptr->node_state = old_node_ptr->node_state;
+		}
+
 		if (down_flag) {
 			node_ptr->node_state &= NODE_STATE_FLAGS;
 			node_ptr->node_state |= NODE_STATE_DOWN;
@@ -1303,6 +1326,11 @@ static int _restore_node_state(int recover,
 			xfree(node_ptr->arch);
 			node_ptr->arch = old_node_ptr->arch;
 			old_node_ptr->arch = NULL;
+		}
+		if (old_node_ptr->features_act) {
+			xfree(node_ptr->features_act);
+			node_ptr->features_act = old_node_ptr->features_act;
+			old_node_ptr->features_act = NULL;
 		}
 		if (old_node_ptr->os) {
 			xfree(node_ptr->os);
@@ -1858,6 +1886,8 @@ static int _sync_nodes_to_comp_job(void)
 			if (accounting_enforce & ACCOUNTING_ENFORCE_LIMITS)
 				acct_policy_job_begin(job_ptr);
 
+			if (job_ptr->front_end_ptr)
+				job_ptr->front_end_ptr->job_cnt_run++;
 			deallocate_nodes(job_ptr, false, false, false);
 			/* The job in completing state at slurmctld restart or
 			 * reconfiguration, do not log completion again.
@@ -1893,6 +1923,11 @@ static int _sync_nodes_to_active_job(struct job_record *job_ptr)
 		    (job_ptr->details->whole_node == 2)) {
 			node_ptr->owner_job_cnt++;
 			node_ptr->owner = job_ptr->user_id;
+		}
+
+		if (slurm_mcs_get_select(job_ptr) == 1) {
+			xfree(node_ptr->mcs_label);
+			node_ptr->mcs_label = xstrdup(job_ptr->mcs_label);
 		}
 
 		node_flags = node_ptr->node_state & NODE_STATE_FLAGS;
@@ -1945,7 +1980,8 @@ static int _sync_nodes_to_active_job(struct job_record *job_ptr)
 		}
 	}
 
-	if (IS_JOB_RUNNING(job_ptr) && job_ptr->front_end_ptr)
+	if ((IS_JOB_RUNNING(job_ptr) || IS_JOB_SUSPENDED(job_ptr)) &&
+	    (job_ptr->front_end_ptr != NULL))
 		job_ptr->front_end_ptr->job_cnt_run++;
 
 	return cnt;

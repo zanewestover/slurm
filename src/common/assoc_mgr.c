@@ -42,6 +42,7 @@
 #include <pwd.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "src/common/uid.h"
 #include "src/common/xstring.h"
@@ -84,7 +85,7 @@ static int _get_str_inx(char *name)
 		return 0;
 
 	for (j = 1; *name; name++, j++)
-		index += (int)*name * j;
+		index += (int)tolower(*name) * j;
 
 	return index;
 }
@@ -206,11 +207,13 @@ static slurmdb_assoc_rec_t *_find_assoc_rec(
 	while (assoc_ptr) {
 		if ((!assoc->user && (assoc->uid == NO_VAL))
 		    && (assoc_ptr->user || (assoc_ptr->uid != NO_VAL))) {
-			debug("we are looking for a nonuser association");
+			debug3("%s: we are looking for a nonuser association",
+				__func__);
 			goto next;
 		} else if ((!assoc_ptr->user && (assoc_ptr->uid == NO_VAL))
 			   && (assoc->user || (assoc->uid != NO_VAL))) {
-			debug("we are looking for a user association");
+			debug3("%s: we are looking for a user association",
+				__func__);
 			goto next;
 		} else if (assoc->user && assoc_ptr->user
 			   && ((assoc->uid == NO_VAL) ||
@@ -219,21 +222,21 @@ static slurmdb_assoc_rec_t *_find_assoc_rec(
 			 * associations, so use the name instead
 			 */
 			if (strcasecmp(assoc->user, assoc_ptr->user)) {
-				debug("2 not the right user %u != %u",
-				      assoc->uid, assoc_ptr->uid);
+				debug3("%s: 2 not the right user %u != %u",
+				       __func__, assoc->uid, assoc_ptr->uid);
 				goto next;
 			}
 		} else if (assoc->uid != assoc_ptr->uid) {
-			debug("not the right user %u != %u",
-			       assoc->uid, assoc_ptr->uid);
+			debug3("%s: not the right user %u != %u",
+			       __func__, assoc->uid, assoc_ptr->uid);
 			goto next;
 		}
 
 		if (assoc->acct &&
 		    (!assoc_ptr->acct
 		     || strcasecmp(assoc->acct, assoc_ptr->acct))) {
-			debug("not the right account %s != %s",
-			       assoc->acct, assoc_ptr->acct);
+			debug3("%s: not the right account %s != %s",
+			       __func__, assoc->acct, assoc_ptr->acct);
 			goto next;
 		}
 
@@ -241,7 +244,7 @@ static slurmdb_assoc_rec_t *_find_assoc_rec(
 		if (!assoc_mgr_cluster_name && assoc->cluster
 		    && (!assoc_ptr->cluster
 			|| strcasecmp(assoc->cluster, assoc_ptr->cluster))) {
-			debug("not the right cluster");
+			debug3("%s: not the right cluster", __func__);
 			goto next;
 		}
 
@@ -249,7 +252,7 @@ static slurmdb_assoc_rec_t *_find_assoc_rec(
 		    && (!assoc_ptr->partition
 			|| strcasecmp(assoc->partition,
 				      assoc_ptr->partition))) {
-			debug("not the right partition");
+			debug3("%s: not the right partition", __func__);
 			goto next;
 		}
 
@@ -413,21 +416,20 @@ static int _clear_used_assoc_info(slurmdb_assoc_rec_t *assoc)
 	return SLURM_SUCCESS;
 }
 
-static void _clear_qos_user_limit_info(slurmdb_qos_rec_t *qos_ptr)
+static void _clear_qos_used_limit_list(List used_limit_list, uint32_t tres_cnt)
 {
 	slurmdb_used_limits_t *used_limits = NULL;
 	ListIterator itr = NULL;
 	int i;
 
-	if (!qos_ptr->usage->user_limit_list
-	    || !list_count(qos_ptr->usage->user_limit_list))
+	if (!used_limit_list || !list_count(used_limit_list))
 		return;
 
-	itr = list_iterator_create(qos_ptr->usage->user_limit_list);
+	itr = list_iterator_create(used_limit_list);
 	while ((used_limits = list_next(itr))) {
 		used_limits->jobs = 0;
 		used_limits->submit_jobs = 0;
-		for (i=0; i<qos_ptr->usage->tres_cnt; i++) {
+		for (i=0; i<tres_cnt; i++) {
 			used_limits->tres[i] = 0;
 			used_limits->tres_run_mins[i] = 0;
 		}
@@ -435,6 +437,20 @@ static void _clear_qos_user_limit_info(slurmdb_qos_rec_t *qos_ptr)
 	list_iterator_destroy(itr);
 
 	return;
+}
+
+
+
+static void _clear_qos_acct_limit_info(slurmdb_qos_rec_t *qos_ptr)
+{
+	_clear_qos_used_limit_list(qos_ptr->usage->acct_limit_list,
+				   qos_ptr->usage->tres_cnt);
+}
+
+static void _clear_qos_user_limit_info(slurmdb_qos_rec_t *qos_ptr)
+{
+	_clear_qos_used_limit_list(qos_ptr->usage->user_limit_list,
+				   qos_ptr->usage->tres_cnt);
 }
 
 static int _clear_used_qos_info(slurmdb_qos_rec_t *qos)
@@ -455,6 +471,7 @@ static int _clear_used_qos_info(slurmdb_qos_rec_t *qos)
 	 * else where since sometimes we call this and do not want
 	 * shares reset */
 
+	_clear_qos_acct_limit_info(qos);
 	_clear_qos_user_limit_info(qos);
 
 	return SLURM_SUCCESS;
@@ -2511,15 +2528,21 @@ extern int assoc_mgr_fill_in_qos(void *db_conn, slurmdb_qos_rec_t *qos,
 
 	if (!qos->max_tres_mins_pj)
 		qos->max_tres_mins_pj = found_qos->max_tres_mins_pj;
+	if (!qos->max_tres_run_mins_pa)
+		qos->max_tres_run_mins_pa = found_qos->max_tres_run_mins_pa;
 	if (!qos->max_tres_run_mins_pu)
 		qos->max_tres_run_mins_pu = found_qos->max_tres_run_mins_pu;
+	if (!qos->max_tres_pa)
+		qos->max_tres_pa     = found_qos->max_tres_pa;
 	if (!qos->max_tres_pj)
 		qos->max_tres_pj     = found_qos->max_tres_pj;
 	if (!qos->max_tres_pn)
 		qos->max_tres_pn     = found_qos->max_tres_pn;
 	if (!qos->max_tres_pu)
 		qos->max_tres_pu     = found_qos->max_tres_pu;
+	qos->max_jobs_pa     = found_qos->max_jobs_pa;
 	qos->max_jobs_pu     = found_qos->max_jobs_pu;
+	qos->max_submit_jobs_pa = found_qos->max_submit_jobs_pa;
 	qos->max_submit_jobs_pu = found_qos->max_submit_jobs_pu;
 	qos->max_wall_pj     = found_qos->max_wall_pj;
 
@@ -2541,6 +2564,9 @@ extern int assoc_mgr_fill_in_qos(void *db_conn, slurmdb_qos_rec_t *qos,
 	/* Don't send any usage info since we don't know if the usage
 	   is really in existance here, if they really want it they can
 	   use the pointer that is returned. */
+
+	/* if (!qos->usage->acct_limit_list) */
+	/* 	qos->usage->acct_limit_list = found_qos->usage->acct_limit_list; */
 
 	/* qos->usage->grp_used_tres   = found_qos->usage->grp_used_tres; */
 	/* qos->usage->grp_used_tres_run_mins  = */
@@ -3169,9 +3195,9 @@ no_assocs:
 		while ((tmp_char = list_next(qos_itr)))
 			if ((qos_rec = list_find_first(
 				     assoc_mgr_qos_list,
-				     slurmdb_find_tres_in_list,
-				     &tmp_char)))
-				list_append(ret_list, user_rec);
+				     slurmdb_find_qos_in_list_by_name,
+				     tmp_char)))
+				list_append(ret_list, qos_rec);
 		tmp_list = ret_list;
 	} else
 		tmp_list = assoc_mgr_qos_list;
@@ -3203,7 +3229,7 @@ no_qos:
 
 		if (user_itr) {
 			while ((tmp_char = list_next(user_itr)))
-				if (xstrcasecmp(tmp_char, user_rec->name))
+				if (!xstrcasecmp(tmp_char, user_rec->name))
 					break;
 			list_iterator_reset(user_itr);
 			/* not correct user */
@@ -4206,6 +4232,18 @@ extern int assoc_mgr_update_qos(slurmdb_update_object_t *update, bool locked)
 				rec->grp_wall = object->grp_wall;
 			}
 
+			if (object->max_tres_pa) {
+				update_jobs = true;
+				xfree(rec->max_tres_pa);
+				if (object->max_tres_pa[0]) {
+					rec->max_tres_pa = object->max_tres_pa;
+					object->max_tres_pa = NULL;
+				}
+				assoc_mgr_set_tres_cnt_array(
+					&rec->max_tres_pa_ctld,
+					rec->max_tres_pa, INFINITE64, 1);
+			}
+
 			if (object->max_tres_pj) {
 				update_jobs = true;
 				xfree(rec->max_tres_pj);
@@ -4254,6 +4292,19 @@ extern int assoc_mgr_update_qos(slurmdb_update_object_t *update, bool locked)
 					rec->max_tres_mins_pj, INFINITE64, 1);
 			}
 
+			if (object->max_tres_run_mins_pa) {
+				xfree(rec->max_tres_run_mins_pa);
+				if (object->max_tres_run_mins_pa[0]) {
+					rec->max_tres_run_mins_pa =
+						object->max_tres_run_mins_pa;
+					object->max_tres_run_mins_pa = NULL;
+				}
+				assoc_mgr_set_tres_cnt_array(
+					&rec->max_tres_run_mins_pa_ctld,
+					rec->max_tres_run_mins_pa,
+					INFINITE64, 1);
+			}
+
 			if (object->max_tres_run_mins_pu) {
 				xfree(rec->max_tres_run_mins_pu);
 				if (object->max_tres_run_mins_pu[0]) {
@@ -4267,11 +4318,20 @@ extern int assoc_mgr_update_qos(slurmdb_update_object_t *update, bool locked)
 					INFINITE64, 1);
 			}
 
+			if (object->max_jobs_pa != NO_VAL)
+				rec->max_jobs_pa = object->max_jobs_pa;
+
 			if (object->max_jobs_pu != NO_VAL)
 				rec->max_jobs_pu = object->max_jobs_pu;
+
+			if (object->max_submit_jobs_pa != NO_VAL)
+				rec->max_submit_jobs_pa =
+					object->max_submit_jobs_pa;
+
 			if (object->max_submit_jobs_pu != NO_VAL)
 				rec->max_submit_jobs_pu =
 					object->max_submit_jobs_pu;
+
 			if (object->max_wall_pj != NO_VAL) {
 				update_jobs = true;
 				rec->max_wall_pj = object->max_wall_pj;
@@ -4611,7 +4671,7 @@ extern int assoc_mgr_update_tres(slurmdb_update_object_t *update, bool locked)
 	slurmdb_tres_rec_t *object = NULL;
 
 	ListIterator itr = NULL;
-	List tmp_list = assoc_mgr_tres_list;
+	List tmp_list;
 	bool changed = false, freeit = false;
 	int rc = SLURM_SUCCESS;
 	assoc_mgr_lock_t locks = { NO_LOCK, NO_LOCK, NO_LOCK, NO_LOCK,
@@ -4619,9 +4679,15 @@ extern int assoc_mgr_update_tres(slurmdb_update_object_t *update, bool locked)
 	if (!locked)
 		assoc_mgr_lock(&locks);
 
-	if (!tmp_list) {
+	if (!assoc_mgr_tres_list) {
 		tmp_list = list_create(slurmdb_destroy_tres_rec);
 		freeit = true;
+	} else {
+		/* Since assoc_mgr_tres_list gets freed later we need
+		 * to swap things out to avoid memory corruption.
+		 */
+		tmp_list = assoc_mgr_tres_list;
+		assoc_mgr_tres_list = NULL;
 	}
 
 	itr = list_iterator_create(tmp_list);
@@ -5876,6 +5942,8 @@ extern void assoc_mgr_set_qos_tres_cnt(slurmdb_qos_rec_t *qos)
 				     qos->grp_tres_mins, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->grp_tres_run_mins_ctld,
 				     qos->grp_tres_run_mins, INFINITE64, 1);
+	assoc_mgr_set_tres_cnt_array(&qos->max_tres_pa_ctld,
+				     qos->max_tres_pa, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->max_tres_pj_ctld,
 				     qos->max_tres_pj, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->max_tres_pn_ctld,
@@ -5884,6 +5952,8 @@ extern void assoc_mgr_set_qos_tres_cnt(slurmdb_qos_rec_t *qos)
 				     qos->max_tres_pu, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->max_tres_mins_pj_ctld,
 				     qos->max_tres_mins_pj, INFINITE64, 1);
+	assoc_mgr_set_tres_cnt_array(&qos->max_tres_run_mins_pa_ctld,
+				     qos->max_tres_run_mins_pa, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->max_tres_run_mins_pu_ctld,
 				     qos->max_tres_run_mins_pu, INFINITE64, 1);
 	assoc_mgr_set_tres_cnt_array(&qos->min_tres_pj_ctld,

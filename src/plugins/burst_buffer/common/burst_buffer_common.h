@@ -75,8 +75,8 @@ typedef struct bb_config {
 	char    *get_sys_state;
 	uint64_t granularity;		/* space allocation granularity,
 					 * units are GB */
-	uint32_t gres_cnt;		/* Count of records in gres_ptr */
-	burst_buffer_gres_t *gres_ptr;	/* Type is defined in slurm.h */
+	uint32_t pool_cnt;		/* Count of records in pool_ptr */
+	burst_buffer_pool_t *pool_ptr;	/* Type is defined in slurm.h */
 	uint32_t other_timeout;
 	uint32_t stage_in_timeout;
 	uint32_t stage_out_timeout;
@@ -99,14 +99,14 @@ typedef struct bb_alloc {
 	bool cancelled;
 	time_t create_time;	/* Time of creation */
 	time_t end_time;	/* Expected time when use will end */
-	uint32_t gres_cnt;	/* Count of records in gres_ptr */
-	burst_buffer_gres_t *gres_ptr;
 	uint32_t id;		/* ID for reservation/accounting */
 	uint32_t job_id;
 	uint32_t magic;
 	char *name;		/* For persistent burst buffers */
 	struct bb_alloc *next;
+	bool orphaned;		/* Job is purged, could not stage-out data */
 	char *partition;	/* Associated partition (for limits) */
+	char *pool;		/* Resource (pool) used */
 	char *qos;		/* Associated QOS (for limits) */
 	slurmdb_qos_rec_t *qos_ptr;
 	time_t seen_time;	/* Time buffer last seen */
@@ -133,29 +133,21 @@ typedef struct {
 	bool     destroy;	/* Set if buffer destroy requested */
 	bool     hurry;		/* Fast buffer destroy */
 	char    *name;		/* Buffer name, non-numeric for persistent */
+	char    *pool;		/* Pool in which to create buffer */
 	uint64_t size;		/* Buffer size in bytes */
 	uint16_t state;		/* Buffer state, see BB_STATE_* in slurm.h.in */
 	char    *type;		/* Buffer type */
 } bb_buf_t;
 
-/* Generic burst buffer resources. Information about this is found in the Cray
- * documentation, but the logic in Slurm is untested and the functionality may
- * never be used. */
-typedef struct {
-	char *   name;		/* Generic burst buffer resource, e.g. "nodes" */
-	uint64_t count;		/* Count of required resources */
-} bb_gres_t;
-
 /* Burst buffer resources required for a job, based upon a job record's
  * burst_buffer string field */
 #define BB_JOB_MAGIC		0xDEAD3412
 typedef struct bb_job {
-	char      *account;	 /* Associated account (for limits) */
+	char      *account;	/* Associated account (for limits) */
 	uint32_t   buf_cnt;	/* Number of records in buf_ptr */
 	bb_buf_t  *buf_ptr;	/* Buffer creation records */
-	uint32_t   gres_cnt;	/* number of records in gres_ptr */
-	bb_gres_t *gres_ptr;
 	uint32_t   job_id;
+	char      *job_pool;	/* Pool in which to create job buffers */
 	uint32_t   magic;
 	struct bb_job *next;
 	char      *partition;	/* Associated partition (for limits) */
@@ -167,13 +159,8 @@ typedef struct bb_job {
 	uint32_t   swap_nodes;	/* Number of nodes needed */
 	uint64_t   total_size;	/* Total bytes required for job (excludes
 				 * persistent buffers) */
+	uint32_t   user_id;	/* user the job runs as */
 } bb_job_t;
-
-/* Persistent buffer requests which are pending */
-typedef struct {
-	uint32_t   job_id;
-	uint64_t   persist_add;	/* Persistent buffer space job adds, bytes */
-} bb_pend_persist_t;
 
 /* Used for building queue of jobs records for various purposes */
 typedef struct bb_job_queue_rec {
@@ -186,6 +173,7 @@ typedef struct bb_job_queue_rec {
 struct preempt_bb_recs {
 	bb_alloc_t *bb_ptr;
 	uint32_t job_id;
+	char *pool;
 	uint64_t size;
 	time_t   use_time;
 	uint32_t user_id;
@@ -213,10 +201,6 @@ typedef struct bb_state {
 	int		tres_pos;	/* TRES index, for limits */
 	uint64_t	used_space;	/* units are bytes */
 } bb_state_t;
-
-/* Add persistent burst buffer reservation for this job, tests for duplicate */
-extern void bb_add_persist(bb_state_t *state_ptr,
-			   bb_pend_persist_t *bb_persist);
 
 /* Allocate burst buffer hash tables */
 extern void bb_alloc_cache(bb_state_t *state_ptr);
@@ -304,7 +288,7 @@ extern int bb_job_queue_sort(void *x, void *y);
 /* Load and process configuration parameters */
 extern void bb_load_config(bb_state_t *state_ptr, char *plugin_type);
 
-/* Pack individual burst buffer records into a  buffer */
+/* Pack individual burst buffer records into a buffer */
 extern int bb_pack_bufs(uid_t uid, bb_state_t *state_ptr, Buf buffer,
 			uint16_t protocol_version);
 
@@ -319,9 +303,8 @@ extern int bb_pack_usage(uid_t uid, bb_state_t *state_ptr, Buf buffer,
 /* Sort preempt_bb_recs in order of DECREASING use_time */
 extern int bb_preempt_queue_sort(void *x, void *y);
 
-/* Remove persistent burst buffer reservation for this job.
- * Call when job starts running or removed from pending state. */
-extern void bb_rm_persist(bb_state_t *state_ptr, uint32_t job_id);
+/* Return count of child processes */
+extern int bb_proc_count(void);
 
 /* Set the bb_state's tres_pos for limit enforcement.
  * Value is set to -1 if not found. */
@@ -331,11 +314,11 @@ extern void bb_set_tres_pos(bb_state_t *state_ptr);
  * use is expected to begin (i.e. each job's expected start time) */
 extern void bb_set_use_time(bb_state_t *state_ptr);
 
+/* Terminate any child processes */
+extern void bb_shutdown(void);
+
 /* Sleep function, also handles termination signal */
 extern void bb_sleep(bb_state_t *state_ptr, int add_secs);
-
-/* Return true of the identified job has burst buffer space already reserved */
-extern bool bb_test_persist(bb_state_t *state_ptr, uint32_t job_id);
 
 /* Execute a script, wait for termination and return its stdout.
  * script_type IN - Type of program being run (e.g. "StartStageIn")
@@ -349,12 +332,12 @@ extern char *bb_run_script(char *script_type, char *script_path,
 			   char **script_argv, int max_wait, int *status);
 
 /* Make claim against resource limit for a user */
-extern void bb_limit_add(
-	uint32_t user_id, uint64_t bb_size, bb_state_t *state_ptr);
+extern void bb_limit_add(uint32_t user_id, uint64_t bb_size, char *pool,
+			 bb_state_t *state_ptr);
 
 /* Release claim against resource limit for a user */
-extern void bb_limit_rem(
-	uint32_t user_id, uint64_t bb_size, bb_state_t *state_ptr);
+extern void bb_limit_rem(uint32_t user_id, uint64_t bb_size, char *pool,
+			 bb_state_t *state_ptr);
 
 /* Log creation of a persistent burst buffer in the database
  * job_ptr IN - Point to job that created, could be NULL at startup
@@ -366,4 +349,8 @@ extern int bb_post_persist_create(struct job_record *job_ptr,
 
 /* Log deletion of a persistent burst buffer in the database */
 extern int bb_post_persist_delete(bb_alloc_t *bb_alloc, bb_state_t *state_ptr);
+
+/* Determine if the specified pool name is valid on this system */
+extern bool bb_valid_pool_test(bb_state_t *state_ptr, char *pool_name);
+
 #endif	/* __BURST_BUFFER_COMMON_H__ */

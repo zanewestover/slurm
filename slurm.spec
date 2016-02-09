@@ -1,31 +1,32 @@
-# $Id$
-#
 # Note that this package is not relocatable
 
 #
 # build options      .rpmmacros options      change to default action
 # ===============    ====================    ========================
-# --enable-multiple-slurmd %_with_multiple_slurmd 1 build with the multiple slurmd option.  Typically used to simulate a larger system than one has access to.
-# --enable-salloc-background %_with_salloc_background 1 on a cray system alloc salloc to execute as a background process.
-# --prefix           %_prefix        path    install path for commands, libraries, etc.
-# --with aix         %_with_aix         1    build aix RPM
-# --with auth_none   %_with_auth_none   1    build auth-none RPM
-# --with blcr        %_with_blcr        1    require blcr support
-# --with bluegene    %_with_bluegene    1    build bluegene RPM
-# --with cray        %_with_cray        1    build for a Cray system without ALPS
-# --with cray_alps   %_with_cray_alps   1    build for a Cray system with ALPS
-# --with cray_network %_with_cray_network 1  build for a non-Cray system with a Cray network
-# --without debug    %_without_debug    1    don't compile with debugging symbols
-# --with pmix        %_with_pmix        1    build pmix support
-# --with lua         %_with_lua         1    build Slurm lua bindings (proctrack only for now)
-# --without munge    %_without_munge    1    don't build auth-munge RPM
-# --with mysql       %_with_mysql       1    require mysql/mariadb support
-# --with openssl     %_with_openssl     1    require openssl RPM to be installed
-# --without pam      %_without_pam      1    don't require pam-devel RPM to be installed
-# --with percs       %_with_percs       1    build percs RPM
-# --without readline %_without_readline 1    don't require readline-devel RPM to be installed
-# --with sgijob      %_with_sgijob      1    build proctrack-sgi-job RPM
-# --with sun_const   %_with_sun_const   1    build for Sun Constellation system
+# --enable-multiple-slurmd %_with_multiple_slurmd 1  build with the multiple slurmd
+#                                               option.  Typically used to simulate a
+#                                               larger system than one has access to.
+# --enable-salloc-background %_with_salloc_background 1  on a cray system alloc salloc
+#                                               to execute as a background process.
+# --prefix           %_prefix             path  install path for commands, libraries, etc.
+# --with aix         %_with_aix           1     build aix RPM
+# --with auth_none   %_with_auth_none     1     build auth-none RPM
+# --with blcr        %_with_blcr          1     require blcr support
+# --with bluegene    %_with_bluegene      1     build bluegene RPM
+# --with cray        %_with_cray          1     build for a Cray system without ALPS
+# --with cray_alps   %_with_cray_alps     1     build for a Cray system with ALPS
+# --with cray_network %_with_cray_network 1     build for a non-Cray system with a Cray network
+# --without debug    %_without_debug      1     don't compile with debugging symbols
+# --with pmix        %_with_pmix          1     build pmix support
+# --with lua         %_with_lua           1     build Slurm lua bindings (proctrack only for now)
+# --without munge    %_without_munge      path  don't build auth-munge RPM
+# --with mysql       %_with_mysql         1     require mysql/mariadb support
+# --without netloc   %_without_netloc     path  require netloc support
+# --with openssl     %_with_openssl       1     require openssl RPM to be installed
+# --without pam      %_without_pam        1     don't require pam-devel RPM to be installed
+# --with percs       %_with_percs         1     build percs RPM
+# --without readline %_without_readline   1     don't require readline-devel RPM to be installed
+# --with sgijob      %_with_sgijob        1     build proctrack-sgi-job RPM
 #
 #  Allow defining --with and --without build options or %_with and %without in .rpmmacros
 #    slurm_with    builds option by default unless --without is specified
@@ -44,7 +45,6 @@
 %slurm_without_opt cray
 %slurm_without_opt cray_alps
 %slurm_without_opt cray_network
-%slurm_without_opt sun_const
 %slurm_without_opt salloc_background
 %slurm_without_opt multiple_slurmd
 %slurm_without_opt pmix
@@ -319,6 +319,13 @@ Requires: slurm-perlapi
 %description torque
 Torque wrapper scripts used for helping migrate from Torque/PBS to Slurm
 
+%package openlava
+Summary: openlava/LSF wrappers for transitition from OpenLava/LSF to Slurm
+Group: Development/System
+Requires: slurm-perlapi
+%description openlava
+OpenLava wrapper scripts used for helping migrate from OpenLava/LSF to Slurm
+
 %package sjobexit
 Summary: Slurm job exit code management tools
 Group: Development/System
@@ -396,7 +403,7 @@ Perl tool to print Slurm job state information. The output is designed to give
 information on the resource usage and availablilty, as well as information
 about jobs that are currently active on the machine. This output is built
 using the Slurm utilities, sinfo, squeue and scontrol, the man pages for these
-utilites will provide more information and greater depth of understanding
+utilities will provide more information and greater depth of understanding
 
 %if %{slurm_with pam}
 %package pam_slurm
@@ -430,7 +437,6 @@ Gives the ability for Slurm to use Berkeley Lab Checkpoint/Restart
 %configure \
 	%{!?slurm_with_debug:--disable-debug} \
 	%{?slurm_with_partial_attach:--enable-partial-attach} \
-	%{?slurm_with_sun_const:--enable-sun-const} \
 	%{?with_db2_dir:--with-db2-dir=%{?with_db2_dir}} \
 	%{?with_pam_dir:--with-pam_dir=%{?with_pam_dir}} \
 	%{?with_proctrack:--with-proctrack=%{?with_proctrack}}\
@@ -440,6 +446,7 @@ Gives the ability for Slurm to use Berkeley Lab Checkpoint/Restart
 	%{?with_pg_config:--with-pg_config=%{?with_pg_config}} \
 	%{?with_ssl:--with-ssl=%{?with_ssl}} \
 	%{?with_munge:--with-munge=%{?with_munge}}\
+	%{?with_netloc:--with-netloc=%{?with_netloc}}\
 	%{?with_blcr:--with-blcr=%{?with_blcr}}\
 	%{?slurm_with_cray:--enable-native-cray}\
 	%{?slurm_with_cray_network:--enable-cray-network}\
@@ -447,7 +454,7 @@ Gives the ability for Slurm to use Berkeley Lab Checkpoint/Restart
 	%{!?slurm_with_readline:--without-readline} \
 	%{?slurm_with_multiple_slurmd:--enable-multiple-slurmd} \
 	%{?slurm_with_pmix:--with-pmix=%{?with_pmix_dir}} \
-	--with-hdf5=no \
+	%{?with_freeipmi:--with-freeipmi=%{?with_freeipmi}}\
 	%{?with_cflags}
 
 %__make %{?_smp_mflags}
@@ -500,6 +507,8 @@ DESTDIR="$RPM_BUILD_ROOT" %__make install-contrib
    rm -f contribs/cray/opt_modulefiles_slurm
    rm -f $RPM_BUILD_ROOT/%{_sysconfdir}/plugstack.conf.template
    rm -f $RPM_BUILD_ROOT/%{_sysconfdir}/slurm.conf.template
+   rm -f $RPM_BUILD_ROOT/%{_sbindir}/capmc_suspend
+   rm -f $RPM_BUILD_ROOT/%{_sbindir}/capmc_resume
    rm -f $RPM_BUILD_ROOT/%{_sbindir}/slurmconfgen.py
 %endif
 
@@ -518,14 +527,6 @@ install -D -m644 etc/slurmdbd.conf.example ${RPM_BUILD_ROOT}%{_sysconfdir}/slurm
 install -D -m755 contribs/sgather/sgather ${RPM_BUILD_ROOT}%{_bindir}/sgather
 install -D -m755 contribs/sjstat ${RPM_BUILD_ROOT}%{_bindir}/sjstat
 
-# Correct some file permissions
-test -f $RPM_BUILD_ROOT/%{_libdir}/libpmi.la	&&
-	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libpmi.la
-test -f $RPM_BUILD_ROOT/%{_libdir}/libslurm.la	&&
-	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libslurm.la
-test -f $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.la &&
-	chmod 644 $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.la
-
 # Delete unpackaged files:
 test -s $RPM_BUILD_ROOT/%{_perldir}/auto/Slurm/Slurm.bs         ||
 rm   -f $RPM_BUILD_ROOT/%{_perldir}/auto/Slurm/Slurm.bs
@@ -533,10 +534,8 @@ rm   -f $RPM_BUILD_ROOT/%{_perldir}/auto/Slurm/Slurm.bs
 test -s $RPM_BUILD_ROOT/%{_perldir}/auto/Slurmdb/Slurmdb.bs     ||
 rm   -f $RPM_BUILD_ROOT/%{_perldir}/auto/Slurmdb/Slurmdb.bs
 
-rm -f $RPM_BUILD_ROOT/%{_libdir}/libpmi.a
-rm -f $RPM_BUILD_ROOT/%{_libdir}/libpmi2.a
-rm -f $RPM_BUILD_ROOT/%{_libdir}/libslurm.a
-rm -f $RPM_BUILD_ROOT/%{_libdir}/libslurmdb.a
+rm -f $RPM_BUILD_ROOT/%{_libdir}/*.a
+rm -f $RPM_BUILD_ROOT/%{_libdir}/*.la
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/*.a
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/*.la
 rm -f $RPM_BUILD_ROOT/%{_libdir}/slurm/job_submit_defaults.so
@@ -618,6 +617,10 @@ LIST=./slurm.files
 touch $LIST
 test -f $RPM_BUILD_ROOT/etc/init.d/slurm			&&
   echo /etc/init.d/slurm				>> $LIST
+test -f $RPM_BUILD_ROOT/usr/sbin/capmc_suspend			&&
+  echo /usr/sbin/capmc_suspend				>> $LIST
+test -f $RPM_BUILD_ROOT/usr/sbin/capmc_resume			&&
+  echo /usr/sbin/capmc_resume				>> $LIST
 test -f $RPM_BUILD_ROOT/usr/sbin/rcslurm			&&
   echo /usr/sbin/rcslurm				>> $LIST
 test -f $RPM_BUILD_ROOT/usr/lib/systemd/system/slurmctld.service	&&
@@ -674,10 +677,6 @@ test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/proctrack_aix.so      &&
 
 LIST=./devel.files
 touch $LIST
-test -f $RPM_BUILD_ROOT/%{_libdir}/libpmi.la			&&
-  echo %{_libdir}/libpmi.la				>> $LIST
-test -f $RPM_BUILD_ROOT/%{_libdir}/libpmi2.la			&&
-  echo %{_libdir}/libpmi2.la				>> $LIST
 
 LIST=./percs.files
 touch $LIST
@@ -809,10 +808,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/*
 %{_mandir}/man5/acct_gather.*
 %{_mandir}/man5/burst_buffer.*
-%{_mandir}/man5/ext_sensors.*
 %{_mandir}/man5/cgroup.*
 %{_mandir}/man5/cray.*
+%{_mandir}/man5/ext_sensors.*
 %{_mandir}/man5/gres.*
+%{_mandir}/man5/knl.*
 %{_mandir}/man5/nonstop.*
 %{_mandir}/man5/slurm.*
 %{_mandir}/man5/topology.*
@@ -857,8 +857,6 @@ rm -rf $RPM_BUILD_ROOT
 %dir %attr(0755,root,root)
 %dir %{_prefix}/include/slurm
 %{_prefix}/include/slurm/*
-%{_libdir}/libslurm.la
-%{_libdir}/libslurmdb.la
 %{_mandir}/man3/slurm_*
 %dir %{_libdir}/pkgconfig
 %{_libdir}/pkgconfig/slurm.pc
@@ -942,6 +940,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/slurm/gres_nic.so
 %{_libdir}/slurm/job_submit_all_partitions.so
 %{_libdir}/slurm/job_submit_cray.so
+%{_libdir}/slurm/job_submit_knl.so
 %{_libdir}/slurm/job_submit_require_timelimit.so
 %{_libdir}/slurm/job_submit_throttle.so
 %{_libdir}/slurm/jobacct_gather_aix.so
@@ -951,9 +950,13 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/slurm/jobcomp_filetxt.so
 %{_libdir}/slurm/jobcomp_none.so
 %{_libdir}/slurm/jobcomp_script.so
+%{_libdir}/slurm/knl_cray.so
 %{_libdir}/slurm/layouts_power_cpufreq.so
 %{_libdir}/slurm/layouts_power_default.so
 %{_libdir}/slurm/layouts_unit_default.so
+%{_libdir}/slurm/mcs_group.so
+%{_libdir}/slurm/mcs_none.so
+%{_libdir}/slurm/mcs_user.so
 %if ! %{slurm_with bluegene}
 %{_libdir}/slurm/mpi_lam.so
 %{_libdir}/slurm/mpi_mpich1_p4.so
@@ -1013,6 +1016,15 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/generate_pbs_nodefile
 %{_libdir}/slurm/job_submit_pbs.so
 %{_libdir}/slurm/spank_pbs.so
+#############################################################################
+
+%files openlava
+%defattr(-,root,root)
+%{_bindir}/bjobs
+%{_bindir}/bkill
+%{_bindir}/bsub
+%{_bindir}/lsid
+
 #############################################################################
 
 %files sjobexit

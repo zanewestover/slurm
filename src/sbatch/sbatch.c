@@ -444,7 +444,7 @@ static int _fill_job_desc_from_opts(job_desc_msg_t *desc)
 	desc->task_dist  = opt.distribution;
 
 	desc->network = opt.network;
-	if (opt.nice)
+	if (opt.nice != NO_VAL)
 		desc->nice = NICE_OFFSET + opt.nice;
 	if (opt.priority)
 		desc->priority = opt.priority;
@@ -456,6 +456,8 @@ static int _fill_job_desc_from_opts(job_desc_msg_t *desc)
 		desc->burst_buffer = opt.burst_buffer;
 	if (opt.begin)
 		desc->begin_time = opt.begin;
+	if (opt.deadline)
+		desc->deadline = opt.deadline;
 	if (opt.account)
 		desc->account = xstrdup(opt.account);
 	if (opt.comment)
@@ -606,6 +608,8 @@ static int _fill_job_desc_from_opts(job_desc_msg_t *desc)
 		desc->power_flags = opt.power_flags;
 	if (opt.kill_invalid_dep)
 		desc->bitflags = opt.kill_invalid_dep;
+	if (opt.mcs_label)
+		desc->mcs_label = xstrdup(opt.mcs_label);
 
 	return 0;
 }

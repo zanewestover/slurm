@@ -620,7 +620,20 @@ int _print_features(sinfo_data_t * sinfo_data, int width,
 	if (sinfo_data)
 		_print_str(sinfo_data->features, width, right_justify, true);
 	else
-		_print_str("FEATURES", width, right_justify, true);
+		_print_str("AVAIL_FEATURES", width, right_justify, true);
+
+	if (suffix)
+		printf("%s", suffix);
+	return SLURM_SUCCESS;
+}
+
+int _print_features_act(sinfo_data_t * sinfo_data, int width,
+			bool right_justify, char *suffix)
+{
+	if (sinfo_data)
+		_print_str(sinfo_data->features_act, width, right_justify, true);
+	else
+		_print_str("ACTIVE_FEATURES", width, right_justify, true);
 
 	if (suffix)
 		printf("%s", suffix);
@@ -1042,7 +1055,6 @@ int _print_state_compact(sinfo_data_t * sinfo_data, int width,
 
 	if (sinfo_data && sinfo_data->nodes_total) {
 		my_state = sinfo_data->node_state;
-
 		upper_state = node_state_string_compact(my_state);
 		lower_state = _str_tolower(upper_state);
 		_print_str(lower_state, width, right_justify, true);
@@ -1065,11 +1077,6 @@ int _print_state_long(sinfo_data_t * sinfo_data, int width,
 
 	if (sinfo_data && sinfo_data->nodes_total) {
 		my_state = sinfo_data->node_state;
-		if (sinfo_data->cpus_alloc &&
-		    (sinfo_data->cpus_alloc != sinfo_data->cpus_total)) {
-			my_state &= NODE_STATE_FLAGS;
-			my_state |= NODE_STATE_MIXED;
-		}
 		upper_state = node_state_string(my_state);
 		lower_state = _str_tolower(upper_state);
 		_print_str(lower_state, width, right_justify, true);

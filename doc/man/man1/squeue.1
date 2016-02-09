@@ -195,8 +195,11 @@ Time at which the job ended or is expected to end (based upon its time limit).
 (Valid for jobs only)
 .TP
 \fB%E\fR
-Job dependency. This job will not begin execution until the dependent job
-completes.  A value of zero implies this job has no dependencies.
+Job dependencies remaining. This job will not begin execution until these
+dependent jobs complete. In the case of a job that can not run due to job
+dependencies never being satisfied, the full original job dependency
+specification will be reported. A value of NULL implies this job has no
+dependencies.
 (Valid for jobs only)
 .TP
 \fB%f\fR
@@ -403,7 +406,7 @@ Count of cores reserved on each node for system use (core specialization).
 Nice value (adjustment to a job's scheduling priority).
 (Valid for jobs only)
 .TP
-%Y
+\fB%Y\fR
 For pending jobs, a list of the nodes expected to be used when the job is
 started.
 .TP
@@ -529,9 +532,16 @@ Prints the frequency of the allocated CPUs.
 Prints the number of CPUs per tasks allocated to the job.
 (Valid for jobs only)
 .TP
+\fBdeadline\fR
+Prints the deadline affected to the job
+(Valid for jobs only)
+.TP
 \fBdependency\fR
-Job dependency. This job will not begin execution until the dependent job
-completes.  A value of zero implies this job has no dependencies.
+Job dependencies remaining. This job will not begin execution until these
+dependent jobs complete. In the case of a job that can not run due to job
+dependencies never being satisfied, the full original job dependency
+specification will be reported. A value of NULL implies this job has no
+dependencies.
 (Valid for jobs only)
 .TP
 \fBderivedec\fR
@@ -586,6 +596,10 @@ Prints the max number of CPUs allocated to the job.
 .TP
 \fBmaxnodes\fR
 Prints the max number of nodes allocated to the job.
+(Valid for jobs only)
+.TP
+\fBmcslabel\fR
+Prints the MCS_label of the job.
 (Valid for jobs only)
 .TP
 \fBminmemory\fR
@@ -778,7 +792,7 @@ When \-\-sockets\-per\-node has not been set, "*" is displayed.
 Number of sockets per board allocated to the job.
 (Valid for jobs only)
 .TP
-\fBstartime\fR
+\fBstarttime\fR
 Actual or expected start time of the job or job step.
 (Valid for jobs and job steps)
 .TP
@@ -1113,7 +1127,7 @@ Job was explicitly cancelled by the user or system administrator.
 The job may or may not have been initiated.
 .TP
 \fBCD  COMPLETED\fR
-Job has terminated all processes on all nodes.
+Job has terminated all processes on all nodes with an exit code of zero.
 .TP
 \fBCF  CONFIGURING\fR
 Job has been allocated resources, but are waiting for them to become ready for use

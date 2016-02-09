@@ -729,7 +729,7 @@ _wait_for_children_slurmstepd(stepd_step_rec_t *job)
 	int rc;
 	struct timespec ts = {0, 0};
 
-	pthread_mutex_lock(&step_complete.lock);
+	slurm_mutex_lock(&step_complete.lock);
 
 	/* wait an extra 3 seconds for every level of tree below this level */
 	if (step_complete.children > 0) {
@@ -761,20 +761,7 @@ _wait_for_children_slurmstepd(stepd_step_rec_t *job)
 	step_complete.step_rc = _get_exit_code(job);
 	step_complete.wait_children = false;
 
-	pthread_mutex_unlock(&step_complete.lock);
-}
-
-/* If accounting by the job is minimal (i.e. just our "sleep"), then don't
- * send accounting information to slurmctld */
-static bool _minimal_acctg(stepd_step_rec_t *job)
-{
-	if (!job->jobacct)			/* No accounting data */
-		return true;
-	if ((job->jobacct->sys_cpu_sec == 0) &&	/* No measurable usage */
-	    (job->jobacct->user_cpu_sec == 0))
-		return true;
-
-	return false;
+	slurm_mutex_unlock(&step_complete.lock);
 }
 
 /*
@@ -795,9 +782,6 @@ _one_step_complete_msg(stepd_step_rec_t *job, int first, int last)
 	static bool acct_sent = false;
 
 	debug2("_one_step_complete_msg: first=%d, last=%d", first, last);
-
-	if ((job->stepid == SLURM_EXTERN_CONT) && _minimal_acctg(job))
-		return;
 
 	if (job->batch) {	/* Nested batch step anomalies */
 		if (first == -1)
@@ -948,7 +932,7 @@ _send_step_complete_msgs(stepd_step_rec_t *job)
 	int first = -1, last = -1;
 	bool sent_own_comp_msg = false;
 
-	pthread_mutex_lock(&step_complete.lock);
+	slurm_mutex_lock(&step_complete.lock);
 	start = 0;
 	size = bit_size(step_complete.bits);
 
@@ -956,7 +940,7 @@ _send_step_complete_msgs(stepd_step_rec_t *job)
 	if (size == 0) {
 		_one_step_complete_msg(job, step_complete.rank,
 				       step_complete.rank);
-		pthread_mutex_unlock(&step_complete.lock);
+		slurm_mutex_unlock(&step_complete.lock);
 		return;
 	}
 
@@ -978,7 +962,7 @@ _send_step_complete_msgs(stepd_step_rec_t *job)
 				       step_complete.rank);
 	}
 
-	pthread_mutex_unlock(&step_complete.lock);
+	slurm_mutex_unlock(&step_complete.lock);
 }
 
 /* This dummy function is provided so that the checkpoint functions can
@@ -1050,11 +1034,23 @@ static int _spawn_job_container(stepd_step_rec_t *job)
 	}
 	acct_gather_profile_g_task_end(pid);
 	step_complete.rank = job->nodeid;
-
 	acct_gather_profile_endpoll();
 	acct_gather_profile_g_node_step_end();
 	acct_gather_profile_fini();
-	_send_step_complete_msgs(job);
+
+	/* Call the other plugins to clean up
+	 * the cgroup hierarchy.
+	 */
+	step_terminate_monitor_start(job->jobid, job->stepid);
+	proctrack_g_signal(job->cont_id, SIGKILL);
+	proctrack_g_wait(job->cont_id);
+	step_terminate_monitor_stop();
+
+	task_g_post_step(job);
+
+	/* Notify srun of completion AFTER frequency reset to avoid race
+	 * condition starting another job on these CPUs. */
+	while (_send_pending_exit_msgs(job)) {;}
 
 	return SLURM_SUCCESS;
 }

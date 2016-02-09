@@ -1,4 +1,4 @@
-.TH srun "1" "Slurm Commands" "October 2015" "Slurm Commands"
+.TH srun "1" "Slurm Commands" "January 2016" "Slurm Commands"
 
 .SH "NAME"
 srun \- Run parallel jobs
@@ -138,6 +138,16 @@ Also see \fB\-\-bbf\fR.
 Path of file containing burst buffer specification.
 The form of the specification is system dependent.
 Also see \fB\-\-bb\fR.
+
+.TP
+\fB\-\-bcast\fR[=<\fIdest_path\fR>]
+Copy executable file to allocated compute nodes.
+If a file name is specified, copy the executable to the specified destination
+file path. If no path is specified, copy the file to a file named
+"slurm_bcast_<job_id>.<step_id>" in the current working.
+For example, "srun \-\-bcast=/tmp/mine \-N3 a.out" will copy the file "a.out"
+from your current directory to the file "/tmp/mine" on each of the three
+allocated compute nodes and execute that file.
 
 .TP
 \fB\-\-begin\fR=<\fItime\fR>
@@ -548,6 +558,20 @@ there are configurations and options which can result in inconsistent
 allocations when \-c has a value greater than \-c on salloc or sbatch.
 
 .TP
+\fB\-\-deadline\fR=<\fIOPT\fR>
+remove the job if no ending is possible before
+this deadline (start > (deadline \- time[\-min])).
+Default is no deadline.  Valid time formats are:
+.br
+HH:MM[:SS] [AM|PM]
+.br
+MMDD[YY] or MM/DD[/YY] or MM.DD[.YY]
+.br
+MM/DD[/YY]\-HH:MM[:SS]
+.br
+YYYY\-MM\-DD[THH:MM[:SS]]]
+
+.TP
 \fB\-d\fR, \fB\-\-dependency\fR=<\fIdependency_list\fR>
 Defer the start of this job until the specified dependencies have been
 satisfied completed. This option does not apply to job steps (executions of
@@ -560,6 +584,9 @@ Any dependency may be satisfied if the "?" separator is used.
 Many jobs can share the same dependency and these jobs may even belong to
 different  users. The  value may be changed after job submission using the
 scontrol command.
+Once a job dependency fails due to the termination state of a preceding job,
+the dependent job will never be run, even if the preceding job is requeued and
+has a different termination state in a subsequent execution.
 .PD
 .RS
 .TP
@@ -622,11 +649,11 @@ the Epilog parameter in slurm.conf.
 
 
 .TP
-\fB\-\-exclusive[=user]\fR
+\fB\-\-exclusive[=user|mcs]\fR
 This option has two slightly different meanings for job and job step
 allocations.
 When used to initiate a job, the job allocation cannot share nodes with
-other running jobs  (or just other users with the "=user" option).
+other running jobs  (or just other users with the "=user" option or "=mcs" option).
 The default shared/exclusive behavior depends on system configuration and the
 partition's \fBShared\fR option takes precedence over the job's option.
 
@@ -979,6 +1006,12 @@ User to receive email notification of state changes as defined by
 The default value is the submitting user.
 
 .TP
+\fB\-\-mcs\-label\fR=<\fImcs\fR>
+Used only when the mcs/group plugin is enabled.
+This parameter is a group among the groups of the user.
+Default value is calculated by the Plugin mcs if it's enabled.
+
+.TP
 \fB\-\-mem\fR=<\fIMB\fR>
 Specify the real memory required per node in MegaBytes.
 Default value is \fBDefMemPerNode\fR and the maximum value is
@@ -1132,6 +1165,22 @@ implementation supports it, in other words if the MPI has the PMI2
 interface implemented. The \-\-mpi=pmi2 will load the library
 lib/slurm/mpi_pmi2.so which provides the server side functionality but
 the client side must implement PMI2_Init() and the other interface calls.
+.TP
+.B pmix
+To enable PMIx support (http://pmix.github.io/master). The PMIx support
+in Slurm can be used to launch parallel applications (e.g. MPI) if it
+supports PMIx, PMI2 or PMI1. Slurm must be configured with pmix support
+by passing "--with-pmix=<PMIx installation path>" option to its 
+"./configure" script.
+
+At the time of writing PMIx is supported in Open MPI starting from version 2.0.
+PMIx also supports backward compatibility with PMI1 and PMI2 and can be 
+used if MPI was configured with PMI2/PMI1 support pointing to the PMIx library
+("libpmix").
+If MPI supports PMI1/PMI2 but doesn't provide the way to point to a specific 
+implementation, a hack'ish solution leveraging LD_PRELOAD can be used to 
+force "libpmix" usage.
+
 .TP
 .B none
 No special MPI processing. This is the default and works with
@@ -1691,20 +1740,18 @@ very small memory computers.
 
 .TP
 \fB\-t\fR, \fB\-\-time\fR=<\fItime\fR>
-Set a limit on the total run time of the job or job step.  If the
-requested time limit for a job exceeds the partition's time limit,
-the job will be left in a PENDING state (possibly indefinitely).
-If the requested time limit for a job step exceeds the partition's
-time limit, the job step will not be initiated.  The default time
+Set a limit on the total run time of the job allocation.  If the
+requested time limit exceeds the partition's time limit, the job will
+be left in a PENDING state (possibly indefinitely).  The default time
 limit is the partition's default time limit.  When the time limit is reached,
 each task in each job step is sent SIGTERM followed by SIGKILL.  The
-limit is for the job, all job steps are signaled. If the time limit is
-for a single job step within an existing job allocation, only that job
-step will be affected. A job time limit supersedes all job step time
-limits. The interval between SIGTERM and SIGKILL is specified by the
-Slurm configuration parameter \fBKillWait\fR.  A time limit of zero
-requests that no time limit be imposed.  Acceptable time formats
-include "minutes", "minutes:seconds", "hours:minutes:seconds",
+interval between signals is specified by the Slurm configuration
+parameter \fBKillWait\fR.  The \fBOverTimeLimit\fR configuration parameter may
+permit the job to run longer than scheduled.  Time resolution is one minute
+and second values are rounded up to the next minute.
+
+A time limit of zero requests that no time limit be imposed.  Acceptable time
+formats include "minutes", "minutes:seconds", "hours:minutes:seconds",
 "days\-hours", "days\-hours:minutes" and "days\-hours:minutes:seconds".
 
 .TP
@@ -2126,6 +2173,9 @@ Same as \fB\-A, \-\-account\fR
 .TP
 \fBSLURM_ACCTG_FREQ\fR
 Same as \fB\-\-acctg\-freq\fR
+.TP
+\fBSLURM_BCAST\fR
+Same as \fB\-\-bcast\fR
 .TP
 \fBSLURM_BLRTS_IMAGE\fR
 Same as \fB\-\-blrts\-image\fR

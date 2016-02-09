@@ -1,6 +1,5 @@
 /*****************************************************************************\
  *  src/common/stepd_api.h - slurmstepd message API
- *  $Id$
  *****************************************************************************
  *  Copyright (C) 2005-2007 The Regents of the University of California.
  *  Copyright (C) 2008-2010 Lawrence Livermore National Security.
@@ -70,7 +69,8 @@ typedef enum {
 	REQUEST_STEP_COMPLETION_V2,
 	REQUEST_STEP_MEM_LIMITS,
 	REQUEST_STEP_UID,
-	REQUEST_STEP_NODEID
+	REQUEST_STEP_NODEID,
+	REQUEST_ADD_EXTERN_PID
 } step_msg_t;
 
 typedef enum {
@@ -207,6 +207,12 @@ extern List stepd_available(const char *directory, const char *nodename);
  * the proctrack container of the slurmstepd "step".
  */
 bool stepd_pid_in_container(int fd, uint16_t protocol_version, pid_t pid);
+
+/*
+ * Add a pid to the "extern" step of a job, meaning add it to the
+ * jobacct_gather and proctrack plugins.
+ */
+extern int stepd_add_extern_pid(int fd, uint16_t protocol_version, pid_t pid);
 
 /*
  * Return the process ID of the slurmstepd.

@@ -481,6 +481,7 @@ extern void slurm_free_last_update_msg(last_update_msg_t * msg)
 extern void slurm_free_reboot_msg(reboot_msg_t * msg)
 {
 	if (msg) {
+		xfree(msg->features);
 		xfree(msg->node_list);
 		xfree(msg);
 	}
@@ -614,6 +615,7 @@ extern void slurm_free_job_desc_msg(job_desc_msg_t * msg)
 		xfree(msg->licenses);
 		xfree(msg->linuximage);
 		xfree(msg->mail_user);
+		xfree(msg->mcs_label);
 		xfree(msg->mem_bind);
 		xfree(msg->mloaderimage);
 		xfree(msg->name);
@@ -744,6 +746,7 @@ extern void slurm_free_job_info_members(job_info_t * job)
 		xfree(job->features);
 		xfree(job->gres);
 		xfree(job->licenses);
+		xfree(job->mcs_label);
 		xfree(job->name);
 		xfree(job->network);
 		xfree(job->node_inx);
@@ -821,6 +824,7 @@ extern void slurm_free_update_node_msg(update_node_msg_t * msg)
 {
 	if (msg) {
 		xfree(msg->features);
+		xfree(msg->features_act);
 		xfree(msg->gres);
 		xfree(msg->node_addr);
 		xfree(msg->node_hostname);
@@ -1183,7 +1187,16 @@ extern void slurm_free_checkpoint_resp_msg(checkpoint_resp_msg_t *msg)
 		xfree(msg);
 	}
 }
+
 extern void slurm_free_suspend_msg(suspend_msg_t *msg)
+{
+	if (msg) {
+		xfree(msg->job_id_str);
+		xfree(msg);
+	}
+}
+
+extern void slurm_free_top_job_msg(top_job_msg_t *msg)
 {
 	if (msg) {
 		xfree(msg->job_id_str);
@@ -1589,6 +1602,28 @@ extern char *job_reason_string(enum job_state_reason inx)
 		return "AssocMaxBBMinutesPerJob";
 	case WAIT_QOS_MIN_BB:
 		return "QOSMinBB";
+	case FAIL_DEADLINE:
+		return "DeadLine";
+	case WAIT_QOS_MAX_BB_PER_ACCT:
+		return "MaxBBPerAccount";
+	case WAIT_QOS_MAX_CPU_PER_ACCT:
+		return "MaxCpuPerAccount";
+	case WAIT_QOS_MAX_ENERGY_PER_ACCT:
+		return "MaxEnergyPerAccount";
+	case WAIT_QOS_MAX_GRES_PER_ACCT:
+		return "MaxGRESPerAccount";
+	case WAIT_QOS_MAX_NODE_PER_ACCT:
+		return "MaxNodePerAccount";
+	case WAIT_QOS_MAX_LIC_PER_ACCT:
+		return "MaxLicensePerAccount";
+	case WAIT_QOS_MAX_MEM_PER_ACCT:
+		return "MaxMemoryPerAccount";
+	case WAIT_QOS_MAX_UNK_PER_ACCT:
+		return "MaxUnknownPerAccount";
+	case WAIT_QOS_MAX_JOB_PER_ACCT:
+		return "MaxJobsPerAccount";
+	case WAIT_QOS_MAX_SUB_JOB_PER_ACCT:
+		return "MaxSubmitJobsPerAccount";
 	default:
 		snprintf(val, sizeof(val), "%d", inx);
 		return val;
@@ -1828,6 +1863,8 @@ extern char *job_state_string(uint32_t inx)
 		return "PREEMPTED";
 	case JOB_BOOT_FAIL:
 		return "BOOT_FAIL";
+	case JOB_DEADLINE:
+		return "DEADLINE";
 	default:
 		return "?";
 	}
@@ -1873,6 +1910,8 @@ extern char *job_state_string_compact(uint32_t inx)
 		return "PR";
 	case JOB_BOOT_FAIL:
 		return "BF";
+	case JOB_DEADLINE:
+		return "DL";
 	default:
 		return "?";
 	}
@@ -2055,6 +2094,11 @@ extern char *reservation_flags_string(uint32_t flags)
 			xstrcat(flag_str, ",");
 		xstrcat(flag_str, "SPEC_NODES");
 	}
+	if (flags & RESERVE_FLAG_ALL_NODES) {
+		if (flag_str[0])
+			xstrcat(flag_str, ",");
+		xstrcat(flag_str, "ALL_NODES");
+	}
 	if (flags & RESERVE_FLAG_ANY_NODES) {
 		if (flag_str[0])
 			xstrcat(flag_str, ",");
@@ -2099,6 +2143,11 @@ extern char *reservation_flags_string(uint32_t flags)
 		if (flag_str[0])
 			xstrcat(flag_str, ",");
 		xstrcat(flag_str, "REPLACE");
+	}
+	if (flags & RESERVE_FLAG_PURGE_COMP) {
+		if (flag_str[0])
+			xstrcat(flag_str, ",");
+		xstrcat(flag_str, "PURGE_COMP");
 	}
 	return flag_str;
 }
@@ -2566,7 +2615,7 @@ extern void accounting_enforce_string(uint16_t enforce, char *str, int str_len)
 			strcat(str, ",");
 		strcat(str, "nojobs"); //7 len
 	}
-	if (enforce & ACCOUNTING_ENFORCE_NO_JOBS) {
+	if (enforce & ACCOUNTING_ENFORCE_NO_STEPS) {
 		if (str[0])
 			strcat(str, ",");
 		strcat(str, "nosteps"); //8 len
@@ -3054,9 +3103,11 @@ extern void slurm_free_node_info_members(node_info_t * node)
 		ext_sensors_destroy(node->ext_sensors);
 		power_mgmt_data_free(node->power);
 		xfree(node->features);
+		xfree(node->features_act);
 		xfree(node->gres);
 		xfree(node->gres_drain);
 		xfree(node->gres_used);
+		xfree(node->mcs_label);
 		xfree(node->name);
 		xfree(node->node_addr);
 		xfree(node->node_hostname);
@@ -3198,8 +3249,7 @@ extern void slurm_free_topo_info_msg(topo_info_response_msg_t *msg)
  */
 extern void slurm_free_burst_buffer_info_msg(burst_buffer_info_msg_t *msg)
 {
-	int i, j, k;
-	burst_buffer_gres_t *bb_gres_ptr;
+	int i, j;
 	burst_buffer_info_t *bb_info_ptr;
 	burst_buffer_resv_t *bb_resv_ptr;
 
@@ -3211,11 +3261,6 @@ extern void slurm_free_burst_buffer_info_msg(burst_buffer_info_msg_t *msg)
 			xfree(bb_info_ptr->deny_users);
 			xfree(bb_info_ptr->destroy_buffer);
 			xfree(bb_info_ptr->get_sys_state);
-			for (k = 0, bb_gres_ptr = bb_info_ptr->gres_ptr;
-			     k < bb_info_ptr->gres_cnt; k++, bb_gres_ptr++) {
-				xfree(bb_info_ptr->name);
-			}
-			xfree(bb_info_ptr->gres_ptr);
 			xfree(bb_info_ptr->name);
 			xfree(bb_info_ptr->start_stage_in);
 			xfree(bb_info_ptr->start_stage_out);
@@ -3225,15 +3270,10 @@ extern void slurm_free_burst_buffer_info_msg(burst_buffer_info_msg_t *msg)
 			     bb_resv_ptr = bb_info_ptr->burst_buffer_resv_ptr;
 			     j < bb_info_ptr->buffer_count;
 			     j++, bb_resv_ptr++) {
-				for (k = 0, bb_gres_ptr = bb_resv_ptr->gres_ptr;
-				     k < bb_resv_ptr->gres_cnt;
-				     k++, bb_gres_ptr++) {
-					xfree(bb_gres_ptr->name);
-				}
 				xfree(bb_resv_ptr->account);
-				xfree(bb_resv_ptr->gres_ptr);
 				xfree(bb_resv_ptr->name);
 				xfree(bb_resv_ptr->partition);
+				xfree(bb_resv_ptr->pool);
 				xfree(bb_resv_ptr->qos);
 			}
 			xfree(bb_info_ptr->burst_buffer_resv_ptr);
@@ -3367,11 +3407,13 @@ extern void slurm_free_trigger_msg(trigger_info_msg_t *msg)
 {
 	int i;
 
-	for (i=0; i<msg->record_count; i++) {
-		xfree(msg->trigger_array[i].res_id);
-		xfree(msg->trigger_array[i].program);
+	if (msg->trigger_array) {
+		for (i = 0; i < msg->record_count; i++) {
+			xfree(msg->trigger_array[i].res_id);
+			xfree(msg->trigger_array[i].program);
+		}
+		xfree(msg->trigger_array);
 	}
-	xfree(msg->trigger_array);
 	xfree(msg);
 }
 
@@ -3653,6 +3695,9 @@ extern int slurm_free_msg_data(slurm_msg_type_t type, void *data)
 		break;
 	case REQUEST_SUSPEND_INT:
 		slurm_free_suspend_int_msg(data);
+		break;
+	case REQUEST_TOP_JOB:
+		slurm_free_top_job_msg(data);
 		break;
 	case REQUEST_JOB_REQUEUE:
 		slurm_free_requeue_msg(data);
@@ -3967,7 +4012,7 @@ rpc_num2string(uint16_t opcode)
 	static char buf[16];
 
 	switch (opcode) {
-	case REQUEST_NODE_REGISTRATION_STATUS:
+	case REQUEST_NODE_REGISTRATION_STATUS:			/* 1001 */
 		return "REQUEST_NODE_REGISTRATION_STATUS";
 	case MESSAGE_NODE_REGISTRATION_STATUS:
 		return "MESSAGE_NODE_REGISTRATION_STATUS";
@@ -3986,7 +4031,7 @@ rpc_num2string(uint16_t opcode)
 	case REQUEST_CONTROL:
 		return "REQUEST_CONTROL";
 	case REQUEST_SET_DEBUG_LEVEL:
-		return "REQUEST_SET_DEBUG_LEVEL";
+		return "REQUEST_SET_DEBUG_LEVEL";		/* 1010 */
 	case REQUEST_HEALTH_CHECK:
 		return "REQUEST_HEALTH_CHECK";
 	case REQUEST_TAKEOVER:
@@ -4004,14 +4049,15 @@ rpc_num2string(uint16_t opcode)
 	case RESPONSE_ACCT_GATHER_UPDATE:
 		return "RESPONSE_ACCT_GATHER_UPDATE";
 	case REQUEST_ACCT_GATHER_ENERGY:
-		return "REQUEST_ACCT_GATHER_ENERGY";
+		return "REQUEST_ACCT_GATHER_ENERGY";		/* 1020 */
 	case RESPONSE_ACCT_GATHER_ENERGY:
 		return "RESPONSE_ACCT_GATHER_ENERGY";
 	case REQUEST_LICENSE_INFO:
 		return "REQUEST_LICENSE_INFO";
 	case RESPONSE_LICENSE_INFO:
 		return "RESPONSE_LICENSE_INFO";
-	case REQUEST_BUILD_INFO:
+
+	case REQUEST_BUILD_INFO:				/* 2001 */
 		return "REQUEST_BUILD_INFO";
 	case RESPONSE_BUILD_INFO:
 		return "RESPONSE_BUILD_INFO";
@@ -4030,7 +4076,7 @@ rpc_num2string(uint16_t opcode)
 	case REQUEST_PARTITION_INFO:
 		return "REQUEST_PARTITION_INFO";
 	case RESPONSE_PARTITION_INFO:
-		return "RESPONSE_PARTITION_INFO";
+		return "RESPONSE_PARTITION_INFO";		/* 2010 */
 	case REQUEST_ACCTING_INFO:
 		return "REQUEST_ACCTING_INFO";
 	case RESPONSE_ACCOUNTING_INFO:
@@ -4050,7 +4096,7 @@ rpc_num2string(uint16_t opcode)
 	case REQUEST_TRIGGER_CLEAR:
 		return "REQUEST_TRIGGER_CLEAR";
 	case RESPONSE_TRIGGER_GET:
-		return "RESPONSE_TRIGGER_GET";
+		return "RESPONSE_TRIGGER_GET";			/* 2020 */
 	case REQUEST_JOB_INFO_SINGLE:
 		return "REQUEST_JOB_INFO_SINGLE";
 	case REQUEST_SHARE_INFO:
@@ -4061,10 +4107,6 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_RESERVATION_INFO";
 	case RESPONSE_RESERVATION_INFO:
 		return "RESPONSE_RESERVATION_INFO";
-	case REQUEST_LAYOUT_INFO:
-		return "REQUEST_LAYOUT_INFO";
-	case RESPONSE_LAYOUT_INFO:
-		return "RESPONSE_LAYOUT_INFO";
 	case REQUEST_PRIORITY_FACTORS:
 		return "REQUEST_PRIORITY_FACTORS";
 	case RESPONSE_PRIORITY_FACTORS:
@@ -4074,7 +4116,7 @@ rpc_num2string(uint16_t opcode)
 	case RESPONSE_TOPO_INFO:
 		return "RESPONSE_TOPO_INFO";
 	case REQUEST_TRIGGER_PULL:
-		return "REQUEST_TRIGGER_PULL";
+		return "REQUEST_TRIGGER_PULL";			/* 2030 */
 	case REQUEST_FRONT_END_INFO:
 		return "REQUEST_FRONT_END_INFO";
 	case RESPONSE_FRONT_END_INFO:
@@ -4087,16 +4129,33 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_STATS_INFO";
 	case RESPONSE_STATS_INFO:
 		return "RESPONSE_STATS_INFO";
+	case REQUEST_BURST_BUFFER_INFO:
+		return "REQUEST_BURST_BUFFER_INFO";
+	case RESPONSE_BURST_BUFFER_INFO:
+		return "RESPONSE_BURST_BUFFER_INFO";
 	case REQUEST_JOB_USER_INFO:
 		return "REQUEST_JOB_USER_INFO";
-	case REQUEST_NODE_INFO_SINGLE:
+	case REQUEST_NODE_INFO_SINGLE:				/* 2040 */
 		return "REQUEST_NODE_INFO_SINGLE";
-	case REQUEST_UPDATE_JOB:
+	case REQUEST_POWERCAP_INFO:
+		return "REQUEST_POWERCAP_INFO";
+	case RESPONSE_POWERCAP_INFO:
+		return "RESPONSE_POWERCAP_INFO";
+	case REQUEST_ASSOC_MGR_INFO:
+		return "REQUEST_ASSOC_MGR_INFO";
+	case RESPONSE_ASSOC_MGR_INFO:
+		return "RESPONSE_ASSOC_MGR_INFO";
+	/* case REQUEST_SICP_INFO_DEFUNCT:			DEFUNCT */
+	/* case RESPONSE_SICP_INFO_DEFUNCT:			DEFUNCT */
+	case REQUEST_LAYOUT_INFO:
+		return "REQUEST_LAYOUT_INFO";
+	case RESPONSE_LAYOUT_INFO:
+		return "RESPONSE_LAYOUT_INFO";
+
+	case REQUEST_UPDATE_JOB:				/* 3001 */
 		return "REQUEST_UPDATE_JOB";
 	case REQUEST_UPDATE_NODE:
 		return "REQUEST_UPDATE_NODE";
-	case REQUEST_UPDATE_LAYOUT:
-		return "REQUEST_UPDATE_LAYOUT";
 	case REQUEST_CREATE_PARTITION:
 		return "REQUEST_CREATE_PARTITION";
 	case REQUEST_DELETE_PARTITION:
@@ -4112,10 +4171,15 @@ rpc_num2string(uint16_t opcode)
 	case REQUEST_UPDATE_RESERVATION:
 		return "REQUEST_UPDATE_RESERVATION";
 	case REQUEST_UPDATE_BLOCK:
-		return "REQUEST_UPDATE_BLOCK";
+		return "REQUEST_UPDATE_BLOCK";			/* 3010 */
 	case REQUEST_UPDATE_FRONT_END:
 		return "REQUEST_UPDATE_FRONT_END";
-	case REQUEST_RESOURCE_ALLOCATION:
+	case REQUEST_UPDATE_LAYOUT:
+		return "REQUEST_UPDATE_LAYOUT";
+	case REQUEST_UPDATE_POWERCAP:
+		return "REQUEST_UPDATE_POWERCAP";
+
+	case REQUEST_RESOURCE_ALLOCATION:			/* 4001 */
 		return "REQUEST_RESOURCE_ALLOCATION";
 	case RESPONSE_RESOURCE_ALLOCATION:
 		return "RESPONSE_RESOURCE_ALLOCATION";
@@ -4133,7 +4197,7 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_JOB_RESOURCE";
 	case RESPONSE_JOB_RESOURCE:
 		return "RESPONSE_JOB_RESOURCE";
-	case REQUEST_JOB_ATTACH:
+	case REQUEST_JOB_ATTACH:				/* 4010 */
 		return "REQUEST_JOB_ATTACH";
 	case RESPONSE_JOB_ATTACH:
 		return "RESPONSE_JOB_ATTACH";
@@ -4153,7 +4217,7 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_UPDATE_JOB_TIME";
 	case REQUEST_JOB_READY:
 		return "REQUEST_JOB_READY";
-	case RESPONSE_JOB_READY:
+	case RESPONSE_JOB_READY:				/* 4020 */
 		return "RESPONSE_JOB_READY";
 	case REQUEST_JOB_END_TIME:
 		return "REQUEST_JOB_END_TIME";
@@ -4163,7 +4227,8 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_JOB_SBCAST_CRED";
 	case RESPONSE_JOB_SBCAST_CRED:
 		return "RESPONSE_JOB_SBCAST_CRED";
-	case REQUEST_JOB_STEP_CREATE:
+
+	case REQUEST_JOB_STEP_CREATE:				/* 5001 */
 		return "REQUEST_JOB_STEP_CREATE";
 	case RESPONSE_JOB_STEP_CREATE:
 		return "RESPONSE_JOB_STEP_CREATE";
@@ -4177,11 +4242,10 @@ rpc_num2string(uint16_t opcode)
 		return "RESPONSE_CANCEL_JOB_STEP";
 	case REQUEST_UPDATE_JOB_STEP:
 		return "REQUEST_UPDATE_JOB_STEP";
-	case DEFUNCT_RESPONSE_COMPLETE_JOB_STEP:
-		return "DEFUNCT_RESPONSE_COMPLETE_JOB_STEP";
+	/* case DEFUNCT_RESPONSE_COMPLETE_JOB_STEP:		DEFUNCT */
 	case REQUEST_CHECKPOINT:
 		return "REQUEST_CHECKPOINT";
-	case RESPONSE_CHECKPOINT:
+	case RESPONSE_CHECKPOINT:				/* 5010 */
 		return "RESPONSE_CHECKPOINT";
 	case REQUEST_CHECKPOINT_COMP:
 		return "REQUEST_CHECKPOINT_COMP";
@@ -4195,15 +4259,13 @@ rpc_num2string(uint16_t opcode)
 		return "RESPONSE_SUSPEND";
 	case REQUEST_STEP_COMPLETE:
 		return "REQUEST_STEP_COMPLETE";
-	case REQUEST_STEP_COMPLETE_AGGR:
-		return "REQUEST_STEP_COMPLETE_AGGR";
 	case REQUEST_COMPLETE_JOB_ALLOCATION:
 		return "REQUEST_COMPLETE_JOB_ALLOCATION";
 	case REQUEST_COMPLETE_BATCH_SCRIPT:
 		return "REQUEST_COMPLETE_BATCH_SCRIPT";
 	case REQUEST_JOB_STEP_STAT:
 		return "REQUEST_JOB_STEP_STAT";
-	case RESPONSE_JOB_STEP_STAT:
+	case RESPONSE_JOB_STEP_STAT:				/* 5020 */
 		return "RESPONSE_JOB_STEP_STAT";
 	case REQUEST_STEP_LAYOUT:
 		return "REQUEST_STEP_LAYOUT";
@@ -4223,13 +4285,26 @@ rpc_num2string(uint16_t opcode)
 		return "RESPONSE_JOB_STEP_PIDS";
 	case REQUEST_FORWARD_DATA:
 		return "REQUEST_FORWARD_DATA";
-	case REQUEST_COMPLETE_BATCH_JOB:
+	case REQUEST_COMPLETE_BATCH_JOB:			/* 5030 */
 		return "REQUEST_COMPLETE_BATCH_JOB";
 	case REQUEST_SUSPEND_INT:
 		return "REQUEST_SUSPEND_INT";
 	case REQUEST_KILL_JOB:
 		return "REQUEST_KILL_JOB";
-	case REQUEST_LAUNCH_TASKS:
+	case REQUEST_KILL_JOBSTEP:
+		return "REQUEST_KILL_JOBSTEP";
+	case RESPONSE_JOB_ARRAY_ERRORS:
+		return "RESPONSE_JOB_ARRAY_ERRORS";
+	case REQUEST_NETWORK_CALLERID:
+		return "REQUEST_NETWORK_CALLERID";
+	case RESPONSE_NETWORK_CALLERID:
+		return "RESPONSE_NETWORK_CALLERID";
+	case REQUEST_STEP_COMPLETE_AGGR:
+		return "REQUEST_STEP_COMPLETE_AGGR";
+	case REQUEST_TOP_JOB:
+		return "REQUEST_TOP_JOB";
+
+	case REQUEST_LAUNCH_TASKS:				/* 6001 */
 		return "REQUEST_LAUNCH_TASKS";
 	case RESPONSE_LAUNCH_TASKS:
 		return "RESPONSE_LAUNCH_TASKS";
@@ -4247,7 +4322,7 @@ rpc_num2string(uint16_t opcode)
 		return "RESPONSE_REATTACH_TASKS";
 	case REQUEST_KILL_TIMELIMIT:
 		return "REQUEST_KILL_TIMELIMIT";
-	case REQUEST_SIGNAL_JOB:
+	case REQUEST_SIGNAL_JOB:				/* 6010 */
 		return "REQUEST_SIGNAL_JOB";
 	case REQUEST_TERMINATE_JOB:
 		return "REQUEST_TERMINATE_JOB";
@@ -4265,9 +4340,10 @@ rpc_num2string(uint16_t opcode)
 		return "REQUEST_LAUNCH_PROLOG";
 	case REQUEST_COMPLETE_PROLOG:
 		return "REQUEST_COMPLETE_PROLOG";
-	case RESPONSE_PROLOG_EXECUTING:
+	case RESPONSE_PROLOG_EXECUTING:				/* 6019 */
 		return "RESPONSE_PROLOG_EXECUTING";
-	case SRUN_PING:
+
+	case SRUN_PING:						/* 7001 */
 		return "SRUN_PING";
 	case SRUN_TIMEOUT:
 		return "SRUN_TIMEOUT";
@@ -4285,7 +4361,8 @@ rpc_num2string(uint16_t opcode)
 		return "SRUN_REQUEST_SUSPEND";
 	case SRUN_STEP_SIGNAL:
 		return "SRUN_STEP_SIGNAL";
-	case PMI_KVS_PUT_REQ:
+
+	case PMI_KVS_PUT_REQ:					/* 7201 */
 		return "PMI_KVS_PUT_REQ";
 	case PMI_KVS_PUT_RESP:
 		return "PMI_KVS_PUT_RESP";
@@ -4293,26 +4370,27 @@ rpc_num2string(uint16_t opcode)
 		return "PMI_KVS_GET_REQ";
 	case PMI_KVS_GET_RESP:
 		return "PMI_KVS_GET_RESP";
-	case RESPONSE_SLURM_RC:
+
+	case RESPONSE_SLURM_RC:					/* 8001 */
 		return "RESPONSE_SLURM_RC";
 	case RESPONSE_SLURM_RC_MSG:
 		return "RESPONSE_SLURM_RC_MSG";
-	case RESPONSE_FORWARD_FAILED:
+
+	case RESPONSE_FORWARD_FAILED:				/* 9001 */
 		return "RESPONSE_FORWARD_FAILED";
-	case ACCOUNTING_UPDATE_MSG:
+
+	case ACCOUNTING_UPDATE_MSG:				/* 10001 */
 		return "ACCOUNTING_UPDATE_MSG";
 	case ACCOUNTING_FIRST_REG:
 		return "ACCOUNTING_FIRST_REG";
 	case ACCOUNTING_REGISTER_CTLD:
 		return "ACCOUNTING_REGISTER_CTLD";
-	case MESSAGE_COMPOSITE:
+
+	case MESSAGE_COMPOSITE:					/* 110001 */
 		return "MESSAGE_COMPOSITE";
 	case RESPONSE_MESSAGE_COMPOSITE:
 		return "RESPONSE_MESSAGE_COMPOSITE";
-	case REQUEST_BURST_BUFFER_INFO:
-		return "REQUEST_BURST_BUFFER_INFO";
-	case RESPONSE_BURST_BUFFER_INFO:
-		return "RESPONSE_BURST_BUFFER_INFO";
+
 	default:
 		(void) snprintf(buf, sizeof(buf), "%u", opcode);
 		return buf;
@@ -4345,6 +4423,11 @@ slurm_bb_flags2str(uint32_t bb_flags)
 			strcat(bb_str, ",");
 		strcat(bb_str, "PrivateData");
 	}
+	if (bb_flags & BB_FLAG_TEARDOWN_FAILURE) {
+		if (bb_str[0])
+			strcat(bb_str, ",");
+		strcat(bb_str, "TeardownFailure");
+	}
 
 	return bb_str;
 }
@@ -4362,6 +4445,8 @@ slurm_bb_str2flags(char *bb_str)
 		bb_flags |= BB_FLAG_ENABLE_PERSISTENT;
 	if (bb_str && strstr(bb_str, "PrivateData"))
 		bb_flags |= BB_FLAG_PRIVATE_DATA;
+	if (bb_str && strstr(bb_str, "TeardownFailure"))
+		bb_flags |= BB_FLAG_TEARDOWN_FAILURE;
 
 	return bb_flags;
 }
@@ -4377,7 +4462,8 @@ slurm_free_assoc_mgr_info_msg(assoc_mgr_info_msg_t *msg)
 	if (msg->tres_names) {
 		int i;
 		for (i=0; i<msg->tres_cnt; i++)
-			xfree(msg->tres_names);
+			xfree(msg->tres_names[i]);
+		xfree(msg->tres_names);
 	}
 	FREE_NULL_LIST(msg->user_list);
 	xfree(msg);
@@ -4393,4 +4479,46 @@ extern void slurm_free_assoc_mgr_info_request_msg(
 	FREE_NULL_LIST(msg->qos_list);
 	FREE_NULL_LIST(msg->user_list);
 	xfree(msg);
+}
+
+extern int parse_part_enforce_type(char *enforce_part_type, uint16_t *param)
+{
+	int rc = SLURM_SUCCESS;
+
+	char *value = xstrdup(enforce_part_type);
+
+	if (!strcasecmp(value, "yes")
+		|| !strcasecmp(value, "up")
+		|| !strcasecmp(value, "true")
+		|| !strcasecmp(value, "1") || !strcasecmp(value, "any")) {
+		*param = PARTITION_ENFORCE_ANY;
+	} else if (!strcasecmp(value, "no")
+		   || !strcasecmp(value, "down")
+		   || !strcasecmp(value, "false")
+		   || !strcasecmp(value, "0")) {
+		*param = PARTITION_ENFORCE_NONE;
+	} else if (!strcasecmp(value, "all")) {
+		*param = PARTITION_ENFORCE_ALL;
+	} else {
+		error("Bad EnforcePartLimits: %s\n", value);
+		rc = SLURM_FAILURE;
+	}
+
+	xfree(value);
+	return rc;
+}
+
+extern char * parse_part_enforce_type_2str (uint16_t type)
+{
+	static char type_str[1024];
+
+	if (type == PARTITION_ENFORCE_NONE) {
+		strcpy(type_str, "NO");
+	} else if (type == PARTITION_ENFORCE_ANY) {
+		strcpy(type_str, "ANY");
+	} else if (type == PARTITION_ENFORCE_ALL) {
+		strcpy(type_str, "ALL");
+	}
+
+	return type_str;
 }

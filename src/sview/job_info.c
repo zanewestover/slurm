@@ -127,6 +127,7 @@ enum {
 	SORTID_CPU_MAX,
 	SORTID_CPU_MIN,
 	SORTID_CPUS_PER_TASK,
+	SORTID_DEADLINE,
 	SORTID_DEPENDENCY,
 	SORTID_DERIVED_EC,
 	SORTID_EXIT_CODE,
@@ -147,6 +148,7 @@ enum {
 	SORTID_JOBID,
 	SORTID_JOBID_FORMATTED,
 	SORTID_LICENSES,
+	SORTID_MCS_LABEL,
 	SORTID_CPU_REQ,
 	SORTID_MEM_MIN,
 	SORTID_TMP_DISK,
@@ -317,6 +319,8 @@ static display_data_t display_data_job[] = {
 	 EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
 	{G_TYPE_STRING, SORTID_TIME_END, "Time End", FALSE,
 	 EDIT_NONE, refresh_job, create_model_job, admin_edit_job},
+	{G_TYPE_STRING, SORTID_DEADLINE, "Deadline", FALSE,
+	 EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
 	{G_TYPE_STRING, SORTID_TIME_SUSPEND, "Time Suspended", FALSE,
 	 EDIT_NONE, refresh_job, create_model_job, admin_edit_job},
 	{G_TYPE_STRING, SORTID_TIMELIMIT, "Time Limit", FALSE,
@@ -413,6 +417,8 @@ static display_data_t display_data_job[] = {
 	{G_TYPE_STRING, SORTID_GRES, "Gres",
 	 FALSE, EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
 	{G_TYPE_STRING, SORTID_LICENSES, "Licenses",
+	 FALSE, EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
+	{G_TYPE_STRING, SORTID_MCS_LABEL, "MCS_Label",
 	 FALSE, EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
 	{G_TYPE_STRING, SORTID_DEPENDENCY, "Dependency",
 	 FALSE, EDIT_TEXTBOX, refresh_job, create_model_job, admin_edit_job},
@@ -1006,6 +1012,10 @@ static const char *_set_job_msg(job_desc_msg_t *job_msg, const char *new_text,
 		job_msg->licenses = xstrdup(new_text);
 		type = "licenses";
 		break;
+	case SORTID_MCS_LABEL:
+		job_msg->mcs_label = xstrdup(new_text);
+		type = "mcs_label";
+		break;
 	case SORTID_ACCOUNT:
 		job_msg->account = xstrdup(new_text);
 		type = "account";
@@ -1164,6 +1174,14 @@ static const char *_set_job_msg(job_desc_msg_t *job_msg, const char *new_text,
 
 		if (job_msg->begin_time < time(NULL))
 			job_msg->begin_time = time(NULL);
+		break;
+	case SORTID_DEADLINE:
+		type = "deadline";
+		job_msg->deadline = parse_time((char *)new_text, 0);
+		if (!job_msg->deadline)
+			goto return_error;
+		if (job_msg->deadline < time(NULL))
+			goto return_error;
 		break;
 	case SORTID_STD_OUT:
 		type = "StdOut";
@@ -1542,6 +1560,15 @@ static void _layout_job_record(GtkTreeView *treeview,
 				   find_col_name(display_data_job,
 						 SORTID_CPUS_PER_TASK),
 				   tmp_char);
+	if (job_ptr->deadline)
+		slurm_make_time_str((time_t *)&job_ptr->deadline, tmp_char,
+				     sizeof(tmp_char));
+	else
+		sprintf(tmp_char, "N/A");
+	add_display_treestore_line(update, treestore, &iter,
+				   find_col_name(display_data_job,
+						 SORTID_DEADLINE),
+				   tmp_char);
 
 	add_display_treestore_line(update, treestore, &iter,
 				   find_col_name(display_data_job,
@@ -1659,6 +1686,12 @@ static void _layout_job_record(GtkTreeView *treeview,
 						 SORTID_LICENSES),
 				   job_ptr->licenses);
 
+	add_display_treestore_line(update, treestore, &iter,
+				   find_col_name(display_data_job,
+						 SORTID_MCS_LABEL),
+				   (job_ptr->mcs_label==NULL) ? "N/A" :
+						 job_ptr->mcs_label);
+
 	convert_num_unit((float)job_ptr->pn_min_cpus,
 			 tmp_char, sizeof(tmp_char), UNIT_NONE,
 			 working_sview_config.convert_flags);
@@ -1709,10 +1742,8 @@ static void _layout_job_record(GtkTreeView *treeview,
 						 SORTID_NETWORK),
 				   job_ptr->network);
 
-	if (job_ptr->nice > 0)
-		sprintf(tmp_char, "%u", job_ptr->nice - NICE_OFFSET);
-	else
-		sprintf(tmp_char, " ");
+	snprintf(tmp_char, sizeof(tmp_char), "%"PRIi64,
+		 (((int64_t)job_ptr->nice) - NICE_OFFSET));
 	add_display_treestore_line(update, treestore, &iter,
 				   find_col_name(display_data_job,
 						 SORTID_NICE),
@@ -1848,12 +1879,14 @@ static void _layout_job_record(GtkTreeView *treeview,
 						   sizeof(tmp_char),
 						   SELECT_PRINT_ROTATE));
 
-	if (job_ptr->shared == 0)
+	if (job_ptr->shared == JOB_SHARED_NONE)
 		sprintf(tmp_char, "no");
-	else if (job_ptr->shared == 1)
+	else if (job_ptr->shared == JOB_SHARED_OK)
 		sprintf(tmp_char, "no");
-	else if (job_ptr->shared == 2)
+	else if (job_ptr->shared == JOB_SHARED_USER)
 		sprintf(tmp_char, "user");
+	else if (job_ptr->shared == JOB_SHARED_MCS)
+		sprintf(tmp_char, "mcs");
 	else
 		sprintf(tmp_char, "ok");
 	add_display_treestore_line(update, treestore, &iter,
@@ -2005,7 +2038,7 @@ static void _update_job_record(sview_job_info_t *sview_job_info_ptr,
 	char tmp_prio[40],      tmp_nice[40],        tmp_preempt_time[40];
 	char tmp_rqswitch[40],  tmp_core_spec[40],   tmp_job_id[400];
 	char tmp_std_err[128],  tmp_std_in[128],     tmp_std_out[128];
-	char tmp_thread_spec[40];
+	char tmp_thread_spec[40], tmp_time_deadline[40];
 	char *tmp_batch,  *tmp_cont, *tmp_shared, *tmp_requeue, *tmp_uname;
 	char *tmp_reboot, *tmp_reason, *tmp_nodes;
 	char time_buf[32];
@@ -2209,7 +2242,8 @@ static void _update_job_record(sview_job_info_t *sview_job_info_ptr,
 	else
 		tmp_shared = "no";
 
-	sprintf(tmp_nice, "%u", job_ptr->nice - NICE_OFFSET);
+	snprintf(tmp_nice, sizeof(tmp_nice), "%"PRIi64,
+		 (((int64_t)job_ptr->nice) - NICE_OFFSET));
 
 	if (!job_ptr->nodes || IS_JOB_PENDING(job_ptr) ||
 	    !strcasecmp(job_ptr->nodes,"waiting...")) {
@@ -2278,6 +2312,12 @@ static void _update_job_record(sview_job_info_t *sview_job_info_ptr,
 
 	slurm_make_time_str((time_t *)&job_ptr->submit_time, tmp_time_submit,
 			    sizeof(tmp_time_submit));
+
+	if (job_ptr->deadline)
+		slurm_make_time_str((time_t *)&job_ptr->deadline, tmp_time_deadline,
+				     sizeof(tmp_time_deadline));
+	else
+		sprintf(tmp_time_deadline, "N/A");
 
 	slurm_get_job_stderr(tmp_std_err, sizeof(tmp_std_err), job_ptr);
 
@@ -2356,6 +2396,7 @@ static void _update_job_record(sview_job_info_t *sview_job_info_ptr,
 				   SORTID_CPU_MIN,      tmp_cpu_cnt,
 				   SORTID_CPUS_PER_TASK,tmp_cpus_per_task,
 				   SORTID_CPU_REQ,      tmp_cpu_req,
+				   SORTID_DEADLINE,     tmp_time_deadline,
 				   SORTID_DEPENDENCY,   job_ptr->dependency,
 				   SORTID_DERIVED_EC,   tmp_derived_ec,
 				   SORTID_EXIT_CODE,    tmp_exit,
@@ -2365,6 +2406,7 @@ static void _update_job_record(sview_job_info_t *sview_job_info_ptr,
 				   SORTID_JOBID,        tmp_job_id,
 				   SORTID_JOBID_FORMATTED, tmp_job_id,
 				   SORTID_LICENSES,     job_ptr->licenses,
+				   SORTID_MCS_LABEL,	job_ptr->mcs_label,
 				   SORTID_MEM_MIN,      tmp_mem_min,
 				   SORTID_NAME,         job_ptr->name,
 				   SORTID_NICE,         tmp_nice,

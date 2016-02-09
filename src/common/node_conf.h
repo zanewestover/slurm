@@ -4,6 +4,7 @@
  *****************************************************************************
  *  Copyright (C) 2002-2007 The Regents of the University of California.
  *  Copyright (C) 2008-2010 Lawrence Livermore National Security.
+ *  Copyright (C) 2010-2016 SchedMD LLC.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Morris Jette <jette1@llnl.gov> et. al.
  *  CODE-OCEC-09-009. All rights reserved.
@@ -88,12 +89,13 @@ extern List config_list;	/* list of config_record entries */
 
 extern List front_end_list;	/* list of slurm_conf_frontend_t entries */
 
-struct features_record {
+typedef struct node_features {
 	uint32_t magic;		/* magic cookie to test data integrity */
 	char *name;		/* name of a feature */
 	bitstr_t *node_bitmap;	/* bitmap of nodes with this feature */
-};
-extern List feature_list;	/* list of features_record entries */
+} node_feature_t;
+extern List active_feature_list;/* list of currently active node features */
+extern List avail_feature_list;	/* list of available node features */
 
 struct node_record {
 	uint32_t magic;			/* magic cookie for data integrity */
@@ -137,7 +139,10 @@ struct node_record {
 					 * set, ignore if no reason is set. */
 	uint32_t reason_uid;		/* User that set the reason, ignore if
 					 * no reason is set. */
-	char *features;			/* node's features, used only
+	char *features;			/* node's available features, used only
+					 * for state save/restore, DO NOT
+					 * use for scheduling purposes */
+	char *features_act;		/* node's active features, used only
 					 * for state save/restore, DO NOT
 					 * use for scheduling purposes */
 	char *gres;			/* node's generic resources, used only
@@ -178,6 +183,7 @@ struct node_record {
 	char *tres_str;                 /* tres this node has */
 	char *tres_fmt_str;		/* tres this node has */
 	uint64_t *tres_cnt;		/* tres this node has. NO_PACK*/
+	char *mcs_label;		/* mcs_label if mcs plugin in use */
 };
 extern struct node_record *node_record_table_ptr;  /* ptr to node records */
 extern int node_record_count;		/* count in node_record_table_ptr */
@@ -234,8 +240,18 @@ extern int build_all_nodeline_info (bool set_bitmap);
  */
 extern int build_all_frontend_info (bool is_slurmd_context);
 
-/* Given a config_record with it's bitmap already set, update feature_list */
-extern void  build_config_feature_list (struct config_record *config_ptr);
+/* Rebuild active_feature_list for given node bitmap */
+extern void  build_active_feature_list(bitstr_t *node_bitmap,
+				       char *active_features);
+
+/* Rebuild active_feature_list for given node index,
+ * IN node_inx - Node index, if -1 then copy alloc_feature_list into
+ *		 acitve_feature_list, if -2 then log state
+ */
+extern void  build_active_feature_list2(int node_inx, char *active_features);
+
+/* Rebuild avail_feature_list for given node configuration structure */
+extern void  build_avail_feature_list(struct config_record *config_ptr);
 
 /*
  * create_config_record - create a config_record entry and set is values to

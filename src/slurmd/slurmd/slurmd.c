@@ -89,6 +89,7 @@
 #include "src/common/slurm_cred.h"
 #include "src/common/slurm_acct_gather_energy.h"
 #include "src/common/slurm_jobacct_gather.h"
+#include "src/common/slurm_mcs.h"
 #include "src/common/slurm_protocol_api.h"
 #include "src/common/slurm_route.h"
 #include "src/common/slurm_strcasestr.h"
@@ -111,7 +112,7 @@
 #include "src/slurmd/slurmd/slurmd.h"
 #include "src/slurmd/slurmd/slurmd_plugstack.h"
 
-#define GETOPT_ARGS	"cCd:Df:hL:Mn:N:vV"
+#define GETOPT_ARGS	"bcCd:Df:hL:Mn:N:vV"
 
 #ifndef MAXHOSTNAMELEN
 #  define MAXHOSTNAMELEN	64
@@ -1011,7 +1012,6 @@ _reconfigure(void)
 {
 	List steps;
 	ListIterator i;
-	slurm_ctl_conf_t *cf;
 	step_loc_t *stepd;
 	bool did_change;
 
@@ -1049,14 +1049,9 @@ _reconfigure(void)
 	slurm_cred_ctx_key_update(conf->vctx, conf->pubkey);
 
 	/*
-	 * Reinitialize the groups cache
+	 * Purge the username -> grouplist cache.
 	 */
-	cf = slurm_conf_lock();
-	if (cf->group_info & GROUP_CACHE)
-		init_gids_cache(1);
-	else
-		init_gids_cache(0);
-	slurm_conf_unlock();
+	gids_cache_purge();
 
 	/* send reconfig to each stepd so they can refresh their log
 	 * file handle
@@ -1110,11 +1105,6 @@ _print_conf(void)
 	debug3("NodeName    = %s",       conf->node_name);
 	debug3("TopoAddr    = %s",       conf->node_topo_addr);
 	debug3("TopoPattern = %s",       conf->node_topo_pattern);
-	if (cf->group_info & GROUP_CACHE)
-		i = 1;
-	else
-		i = 0;
-	debug3("CacheGroups = %d",       i);
 	debug3("ClusterName = %s",       conf->cluster_name);
 	debug3("Confile     = `%s'",     conf->conffile);
 	debug3("Debug       = %d",       cf->slurmd_debug);
@@ -1307,6 +1297,9 @@ _process_cmdline(int ac, char **av)
 
 	while ((c = getopt(ac, av, GETOPT_ARGS)) > 0) {
 		switch (c) {
+		case 'b':
+			conf->boot_time = 1;
+			break;
 		case 'c':
 			conf->cleanstart = 1;
 			break;
@@ -1443,7 +1436,6 @@ static int
 _slurmd_init(void)
 {
 	struct rlimit rlim;
-	slurm_ctl_conf_t *cf;
 	struct stat stat_buf;
 	uint32_t cpu_cnt;
 
@@ -1599,16 +1591,6 @@ _slurmd_init(void)
 				info("chdir to /var/tmp");
 		}
 	}
-
-	/*
-	 * Cache the group access list
-	 */
-	cf = slurm_conf_lock();
-	if (cf->group_info & GROUP_CACHE)
-		init_gids_cache(1);
-	else
-		init_gids_cache(0);
-	slurm_conf_unlock();
 
 	if ((devnull = open_cloexec("/dev/null", O_RDWR)) < 0) {
 		error("Unable to open /dev/null: %m");
@@ -1812,6 +1794,7 @@ _usage(void)
 {
 	fprintf(stderr, "\
 Usage: %s [OPTIONS]\n\
+   -b          Report node reboot now.\n\
    -c          Force cleanup of slurmd shared memory.\n\
    -C          Print node configuration information and exit.\n\
    -d stepd    Pathname to the slurmstepd program.\n\

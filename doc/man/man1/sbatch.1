@@ -386,6 +386,20 @@ the \-\-cpus\-per\-task=3 options, the controller knows that each task requires
 of 4 nodes, one for each of the 4 tasks.
 
 .TP
+\fB\-\-deadline\fR=<\fIOPT\fR>
+remove the job if no ending is possible before
+this deadline (start > (deadline \- time[\-min])).
+Default is no deadline.  Valid time formats are:
+.br
+HH:MM[:SS] [AM|PM]
+.br
+MMDD[YY] or MM/DD[/YY] or MM.DD[.YY]
+.br
+MM/DD[/YY]\-HH:MM[:SS]
+.br
+YYYY\-MM\-DD[THH:MM[:SS]]]
+
+.TP
 \fB\-d\fR, \fB\-\-dependency\fR=<\fIdependency_list\fR>
 Defer the start of this job until the specified dependencies have been
 satisfied completed.
@@ -397,6 +411,9 @@ Any dependency may be satisfied if the "?" separator is used.
 Many jobs can share the same dependency and these jobs may even belong to
 different  users. The  value may be changed after job submission using the
 scontrol command.
+Once a job dependency fails due to the termination state of a preceding job,
+the dependent job will never be run, even if the preceding job is requeued and
+has a different termination state in a subsequent execution.
 .PD
 .RS
 .TP
@@ -443,9 +460,9 @@ replaced by the job ID.
 See the \fB\-\-input\fR option for filename specification options.
 
 .TP
-\fB\-\-exclusive[=user]\fR
+\fB\-\-exclusive[=user|mcs]\fR
 The job allocation can not share nodes with other running jobs (or just other
-users with the "=user" option).
+users with the "=user" option or with the "=mcs" option).
 The default shared/exclusive behavior depends on system configuration and the
 partition's \fBShared\fR option takes precedence over the job's option.
 
@@ -776,6 +793,12 @@ rather than generating individual email messages for each task in the job array.
 User to receive email notification of state changes as defined by
 \fB\-\-mail\-type\fR.
 The default value is the submitting user.
+
+.TP
+\fB\-\-mcs\-label\fR=<\fImcs\fR>
+Used only when the mcs/group plugin is enabled.
+This parameter is a group among the groups of the user.
+Default value is calculated by the Plugin mcs if it's enabled.
 
 .TP
 \fB\-\-mem\fR=<\fIMB\fR>
@@ -1362,10 +1385,13 @@ be left in a PENDING state (possibly indefinitely).  The default time
 limit is the partition's default time limit.  When the time limit is reached,
 each task in each job step is sent SIGTERM followed by SIGKILL.  The
 interval between signals is specified by the Slurm configuration
-parameter \fBKillWait\fR.  A time limit of zero requests that no time
-limit be imposed.  Acceptable time formats include "minutes",
-"minutes:seconds", "hours:minutes:seconds", "days\-hours",
-"days\-hours:minutes" and "days\-hours:minutes:seconds".
+parameter \fBKillWait\fR.  The \fBOverTimeLimit\fR configuration parameter may
+permit the job to run longer than scheduled.  Time resolution is one minute
+and second values are rounded up to the next minute.
+
+A time limit of zero requests that no time limit be imposed.  Acceptable time
+formats include "minutes", "minutes:seconds", "hours:minutes:seconds",
+"days\-hours", "days\-hours:minutes" and "days\-hours:minutes:seconds".
 
 .TP
 \fB\-\-tasks\-per\-node\fR=<\fIn\fR>

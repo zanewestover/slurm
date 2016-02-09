@@ -49,6 +49,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/param.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
@@ -740,7 +741,7 @@ _forkexec_slurmstepd(uint16_t type, void *req,
 		_remove_starting_step(type, req);
 		return SLURM_FAILURE;
 	} else if (pid > 0) {
-		int rc = 0;
+		int rc = SLURM_SUCCESS;
 #ifndef SLURMSTEPD_MEMCHECK
 		int i;
 		time_t start_time = time(NULL);
@@ -768,12 +769,12 @@ _forkexec_slurmstepd(uint16_t type, void *req,
 #ifndef SLURMSTEPD_MEMCHECK
 		i = read(to_slurmd[0], &rc, sizeof(int));
 		if (i < 0) {
-			error("\
-%s: Can not read return code from slurmstepd got %d: %m", __func__, i);
+			error("%s: Can not read return code from slurmstepd "
+			      "got %d: %m", __func__, i);
 			rc = SLURM_FAILURE;
 		} else if (i != sizeof(int)) {
-			error("\
-%s: slurmstepd failed to send return code got %d: %m", __func__, i);
+			error("%s: slurmstepd failed to send return code "
+			      "got %d: %m", __func__, i);
 			rc = SLURM_FAILURE;
 		} else {
 			int delta_time = time(NULL) - start_time;
@@ -783,11 +784,14 @@ _forkexec_slurmstepd(uint16_t type, void *req,
 				     "possible file system problem or full "
 				     "memory", delta_time);
 			}
+			if (rc != SLURM_SUCCESS)
+				error("slurmstepd return code %d", rc);
+
 			cc = SLURM_SUCCESS;
 			cc = write(to_stepd[1], &cc, sizeof(int));
 			if (cc != sizeof(int)) {
-				error("\
-%s: failed to send ack to stepd %d: %m", __func__, cc);
+				error("%s: failed to send ack to stepd %d: %m",
+				      __func__, cc);
 			}
 		}
 #endif
@@ -1153,14 +1157,6 @@ _rpc_launch_tasks(slurm_msg_t *msg)
 	req->envc = envcount(req->env);
 
 #ifndef HAVE_FRONT_END
-	/*
-	 *  Do not launch a new job step while prolog in progress:
-	 */
-	if (_prolog_is_running (req->job_id)) {
-		info("[job %u] prolog in progress\n", req->job_id);
-		errnum = EINPROGRESS;
-		goto done;
-	}
 	slurm_mutex_lock(&prolog_mutex);
 	first_job_run = !slurm_cred_jobid_cached(conf->vctx, req->job_id);
 #endif
@@ -1678,7 +1674,7 @@ static void _rpc_prolog(slurm_msg_t *msg)
 	if (req == NULL)
 		return;
 
-	req_uid = g_slurm_auth_get_uid(msg->auth_cred, NULL);
+	req_uid = g_slurm_auth_get_uid(msg->auth_cred, slurm_get_auth_info());
 	if (!_slurm_authorized_user(req_uid)) {
 		error("REQUEST_LAUNCH_PROLOG request from uid %u",
 		      (unsigned int) req_uid);
@@ -1702,16 +1698,15 @@ static void _rpc_prolog(slurm_msg_t *msg)
 		rc = ESLURMD_PROLOG_FAILED;
 	}
 
-	if (slurmctld_conf.prolog_flags & PROLOG_FLAG_CONTAIN)
-		_make_prolog_mem_container(msg);
-
-	if (container_g_create(req->job_id))
-		error("container_g_create(%u): %m", req->job_id);
-
 	slurm_mutex_lock(&prolog_mutex);
 	first_job_run = !slurm_cred_jobid_cached(conf->vctx, req->job_id);
-
 	if (first_job_run) {
+		if (slurmctld_conf.prolog_flags & PROLOG_FLAG_CONTAIN)
+			_make_prolog_mem_container(msg);
+
+		if (container_g_create(req->job_id))
+			error("container_g_create(%u): %m", req->job_id);
+
 		slurm_cred_insert_jobid(conf->vctx, req->job_id);
 		_add_job_running_prolog(req->job_id);
 		slurm_mutex_unlock(&prolog_mutex);
@@ -1913,6 +1908,8 @@ _rpc_batch_job(slurm_msg_t *msg, bool new_msg)
 	 * if the job was cancelled in the interim, run through the
 	 * abort logic below. */
 	revoked = slurm_cred_revoked(conf->vctx, req->cred);
+	if (revoked)
+		_launch_complete_rm(req->job_id);
 	if (revoked && _is_batch_job_finished(req->job_id)) {
 		/* If configured with select/serial and the batch job already
 		 * completed, consider the job sucessfully launched and do
@@ -2037,7 +2034,7 @@ _launch_job_fail(uint32_t job_id, uint32_t slurm_rc)
 	complete_batch_script_msg_t comp_msg;
 	struct requeue_msg req_msg;
 	slurm_msg_t resp_msg;
-	int rc;
+	int rc = 0, rpc_rc;
 	static time_t config_update = 0;
 	static bool requeue_no_hold = false;
 
@@ -2072,7 +2069,22 @@ _launch_job_fail(uint32_t job_id, uint32_t slurm_rc)
 		resp_msg.data = &req_msg;
 	}
 
-	return slurm_send_recv_controller_rc_msg(&resp_msg, &rc);
+	rpc_rc = slurm_send_recv_controller_rc_msg(&resp_msg, &rc);
+	if ((resp_msg.msg_type == REQUEST_JOB_REQUEUE) &&
+	    (rc == ESLURM_DISABLED)) {
+		info("Could not launch job %u and not able to requeue it, "
+		     "cancelling job", job_id);
+		comp_msg.job_id = job_id;
+		comp_msg.job_rc = INFINITE;
+		comp_msg.slurm_rc = slurm_rc;
+		comp_msg.node_name = conf->node_name;
+		comp_msg.jobacct = NULL; /* unused */
+		resp_msg.msg_type = REQUEST_COMPLETE_BATCH_SCRIPT;
+		resp_msg.data = &comp_msg;
+		rpc_rc = slurm_send_recv_controller_rc_msg(&resp_msg, &rc);
+	}
+
+	return rpc_rc;
 }
 
 static int
@@ -2133,7 +2145,8 @@ _rpc_shutdown(slurm_msg_t *msg)
 static void
 _rpc_reboot(slurm_msg_t *msg)
 {
-	char *reboot_program, *sp;
+	char *reboot_program, *cmd = NULL, *sp;
+	reboot_msg_t *reboot_msg;
 	slurm_ctl_conf_t *cfg;
 	uid_t req_uid = g_slurm_auth_get_uid(msg->auth_cred,
 					     slurm_get_auth_info());
@@ -2151,13 +2164,20 @@ _rpc_reboot(slurm_msg_t *msg)
 				sp = xstrndup(reboot_program,
 					      (sp - reboot_program));
 			else
-			    sp = xstrdup(reboot_program);
+				sp = xstrdup(reboot_program);
+			reboot_msg = (reboot_msg_t *) msg->data;
+			if (reboot_msg && reboot_msg->features) {
+				xstrfmtcat(cmd, "%s %s",
+					   sp, reboot_msg->features);
+			} else
+				cmd = xstrdup(sp);
 			if (access(sp, R_OK | X_OK) < 0)
 				error("Cannot run RebootProgram [%s]: %m", sp);
-			else if ((exit_code = system(reboot_program)))
+			else if ((exit_code = system(cmd)))
 				error("system(%s) returned %d", reboot_program,
 				      exit_code);
 			xfree(sp);
+			xfree(cmd);
 		} else
 			error("RebootProgram isn't defined in config");
 		slurm_conf_unlock();
@@ -2506,7 +2526,7 @@ _rpc_health_check(slurm_msg_t *msg)
 	 * slurmctld in hopes of avoiding having the node set DOWN due to
 	 * slurmd paging and not being able to respond in a timely fashion. */
 	if (slurm_send_rc_msg(msg, rc) < 0) {
-		error("Error responding to ping: %m");
+		error("Error responding to health check: %m");
 		send_registration_msg(SLURM_SUCCESS, false);
 	}
 
@@ -2551,7 +2571,7 @@ _rpc_acct_gather_update(slurm_msg_t *msg)
 		 * due to slurmd paging and not being able to respond in a
 		 * timely fashion. */
 		if (slurm_send_rc_msg(msg, rc) < 0) {
-			error("Error responding to ping: %m");
+			error("Error responding to account gather: %m");
 			send_registration_msg(SLURM_SUCCESS, false);
 		}
 	} else {
@@ -2657,7 +2677,7 @@ _signal_jobstep(uint32_t jobid, uint32_t stepid, uid_t req_uid,
 	fd = stepd_connect(conf->spooldir, conf->node_name, jobid, stepid,
 			   &protocol_version);
 	if (fd == -1) {
-		debug("signal for nonexistant %u.%u stepd_connect failed: %m",
+		debug("signal for nonexistent %u.%u stepd_connect failed: %m",
 		      jobid, stepid);
 		return ESLURM_INVALID_JOB_ID;
 	}
@@ -2744,7 +2764,7 @@ _rpc_checkpoint_tasks(slurm_msg_t *msg)
 	fd = stepd_connect(conf->spooldir, conf->node_name,
 			   req->job_id, req->job_step_id, &protocol_version);
 	if (fd == -1) {
-		debug("checkpoint for nonexistant %u.%u stepd_connect "
+		debug("checkpoint for nonexistent %u.%u stepd_connect "
 		      "failed: %m", req->job_id, req->job_step_id);
 		rc = ESLURM_INVALID_JOB_ID;
 		goto done;
@@ -2790,7 +2810,7 @@ _rpc_terminate_tasks(slurm_msg_t *msg)
 	fd = stepd_connect(conf->spooldir, conf->node_name,
 			   req->job_id, req->job_step_id, &protocol_version);
 	if (fd == -1) {
-		debug("kill for nonexistant job %u.%u stepd_connect "
+		debug("kill for nonexistent job %u.%u stepd_connect "
 		      "failed: %m", req->job_id, req->job_step_id);
 		rc = ESLURM_INVALID_JOB_ID;
 		goto done;
@@ -2878,7 +2898,7 @@ static int
 _rpc_step_complete_aggr(slurm_msg_t *msg)
 {
 	int rc;
-	uid_t uid = g_slurm_auth_get_uid(msg->auth_cred, NULL);
+	uid_t uid = g_slurm_auth_get_uid(msg->auth_cred, slurm_get_auth_info());
 
 	if (!_slurm_authorized_user(uid)) {
 		error("Security violation: step_complete_aggr from uid %d",
@@ -3139,7 +3159,7 @@ _rpc_network_callerid(slurm_msg_t *msg)
 	rc = _callerid_find_job(conn, &job_id);
 	if (rc == SLURM_SUCCESS) {
 		/* We found the job */
-		req_uid = g_slurm_auth_get_uid(msg->auth_cred, NULL);
+		req_uid = g_slurm_auth_get_uid(msg->auth_cred, slurm_get_auth_info());
 		if (!_slurm_authorized_user(req_uid)) {
 			/* Requestor is not root or SlurmUser */
 			job_uid = _get_job_uid(job_id);
@@ -3560,9 +3580,9 @@ _rpc_file_bcast(slurm_msg_t *msg)
 		error("sbcast: uid:%u can't chmod `%s`: %s",
 		      req_uid, req->fname, strerror(errno));
 	}
-	if (req->last_block && fchown(fd, req->uid, req->gid)) {
-		error("sbcast: uid:%u can't chown `%s`: %s",
-		      req_uid, req->fname, strerror(errno));
+	if (req->last_block && fchown(fd, req_uid, req_gid)) {
+		error("sbcast: uid:%u gid:%u can't chown `%s`: %s",
+		      req_uid, req_gid, req->fname, strerror(errno));
 	}
 	close(fd);
 	if (req->last_block && req->atime) {
@@ -4090,7 +4110,7 @@ _get_suspend_job_lock(uint32_t job_id)
 	static bool logged = false;
 	int i, empty_loc = -1, rc = 0;
 
-	pthread_mutex_lock(&suspend_mutex);
+	slurm_mutex_lock(&suspend_mutex);
 	for (i = 0; i < job_suspend_size; i++) {
 		if (job_suspend_array[i] == 0) {
 			empty_loc = i;
@@ -4098,7 +4118,7 @@ _get_suspend_job_lock(uint32_t job_id)
 		}
 		if (job_suspend_array[i] == job_id) {
 			/* another thread already a lock for this job ID */
-			pthread_mutex_unlock(&suspend_mutex);
+			slurm_mutex_unlock(&suspend_mutex);
 			return rc;
 		}
 	}
@@ -4117,7 +4137,7 @@ _get_suspend_job_lock(uint32_t job_id)
 		      NUM_PARALLEL_SUSP_JOBS);
 		logged = true;
 	}
-	pthread_mutex_unlock(&suspend_mutex);
+	slurm_mutex_unlock(&suspend_mutex);
 	return rc;
 }
 
@@ -4125,12 +4145,12 @@ static void
 _unlock_suspend_job(uint32_t job_id)
 {
 	int i;
-	pthread_mutex_lock(&suspend_mutex);
+	slurm_mutex_lock(&suspend_mutex);
 	for (i = 0; i < job_suspend_size; i++) {
 		if (job_suspend_array[i] == job_id)
 			job_suspend_array[i] = 0;
 	}
-	pthread_mutex_unlock(&suspend_mutex);
+	slurm_mutex_unlock(&suspend_mutex);
 }
 
 /* Add record for every launched job so we know they are ready for suspend */
@@ -5441,12 +5461,13 @@ _run_epilog(job_env_t *job_env)
 
 
 /**********************************************************************/
-/* Because calling initgroups(2) in Linux 2.4/2.6 looks very costly,  */
-/* we cache the group access list and call setgroups(2).              */
+/* Because calling initgroups(2)/getgrouplist(3) can be expensive and */
+/* is not cached by sssd or nscd, we cache the group access list.     */
 /**********************************************************************/
 
 typedef struct gid_cache_s {
 	char *user;
+	time_t timestamp;
 	gid_t gid;
 	gids_t *gids;
 	struct gid_cache_s *next;
@@ -5481,6 +5502,7 @@ _alloc_gids_cache(char *user, gid_t gid, gids_t *gids, gids_cache_t *next)
 
 	p = (gids_cache_t *)xmalloc(sizeof(gids_cache_t));
 	p->user = xstrdup(user);
+	p->timestamp = time(NULL);
 	p->gid = gid;
 	p->gids = gids;
 	p->next = next;
@@ -5508,8 +5530,8 @@ _gids_hashtbl_idx(char *user)
 	return x % GIDS_HASH_LEN;
 }
 
-static void
-_gids_cache_purge(void)
+void
+gids_cache_purge(void)
 {
 	int i;
 	gids_cache_t *p, *q;
@@ -5523,23 +5545,6 @@ _gids_cache_purge(void)
 		}
 		gids_hashtbl[i] = NULL;
 	}
-}
-
-static gids_t *
-_gids_cache_lookup(char *user, gid_t gid)
-{
-	int idx;
-	gids_cache_t *p;
-
-	idx = _gids_hashtbl_idx(user);
-	p = gids_hashtbl[idx];
-	while (p) {
-		if (strcmp(p->user, user) == 0 && p->gid == gid) {
-			return p->gids;
-		}
-		p = p->next;
-	}
-	return NULL;
 }
 
 static void
@@ -5556,99 +5561,58 @@ _gids_cache_register(char *user, gid_t gid, gids_t *gids)
 }
 
 static gids_t *
-_getgroups(void)
+_gids_cache_lookup(char *user, gid_t gid)
 {
-	int n;
-	gid_t *gg;
+	int idx;
+	gids_cache_t *p;
+	bool found_but_old = false;
+	time_t now = 0;
+	int ngroups = 0;
+	gid_t *groups;
 
-	if ((n = getgroups(0, NULL)) < 0) {
-		error("getgroups:_getgroups: %m");
-		return NULL;
+	idx = _gids_hashtbl_idx(user);
+	p = gids_hashtbl[idx];
+	while (p) {
+		if (strcmp(p->user, user) == 0 && p->gid == gid) {
+			slurm_ctl_conf_t *cf = slurm_conf_lock();
+			int group_ttl = cf->group_info & GROUP_TIME_MASK;
+			slurm_conf_unlock();
+			if (!group_ttl)
+				return p->gids;
+			now = time(NULL);
+			if (difftime(now, p->timestamp) < group_ttl)
+				return p->gids;
+			else {
+				found_but_old = true;
+				break;
+			}
+		}
+		p = p->next;
 	}
-	gg = (gid_t *)xmalloc(n * sizeof(gid_t));
-	if (getgroups(n, gg) == -1) {
-		error("_getgroups: couldn't get %d groups: %m", n);
-		xfree(gg);
-		return NULL;
+	/* Cache lookup failed or cached value was too old, fetch new
+	 * value and insert it into cache.  */
+	getgrouplist(user, gid, NULL, &ngroups);
+	groups = xmalloc(ngroups * sizeof(gid_t));
+	if (getgrouplist(user, gid, groups, &ngroups) == -1)
+		error("getgrouplist failed");
+	if (found_but_old) {
+		xfree(p->gids->gids);
+		p->gids->gids = groups;
+		p->gids->ngids = ngroups;
+		p->timestamp = now;
+		return p->gids;
+	} else {
+		gids_t *gids = _alloc_gids(ngroups, groups);
+		_gids_cache_register(user, gid, gids);
+		return gids;
 	}
-	return _alloc_gids(n, gg);
 }
+
 
 extern void
 destroy_starting_step(void *x)
 {
 	xfree(x);
-}
-
-
-
-extern void
-init_gids_cache(int cache)
-{
-	struct passwd *pwd;
-	int ngids;
-	gid_t *orig_gids;
-	gids_t *gids;
-#ifdef HAVE_AIX
-	FILE *fp = NULL;
-#elif defined (__APPLE__) || defined (__CYGWIN__)
-#else
-	struct passwd pw;
-	char buf[BUF_SIZE];
-#endif
-
-	if (!cache) {
-		_gids_cache_purge();
-		return;
-	}
-
-	if ((ngids = getgroups(0, NULL)) < 0) {
-		error("getgroups: init_gids_cache: %m");
-		return;
-	}
-	orig_gids = (gid_t *)xmalloc(ngids * sizeof(gid_t));
-	if (getgroups(ngids, orig_gids) == -1) {
-		error("init_gids_cache: couldn't get %d groups: %m", ngids);
-		xfree(orig_gids);
-		return;
-	}
-
-#ifdef HAVE_AIX
-	setpwent_r(&fp);
-	while (!getpwent_r(&pw, buf, BUF_SIZE, &fp)) {
-		pwd = &pw;
-#else
-	setpwent();
-#if defined (__sun)
-	while ((pwd = getpwent_r(&pw, buf, BUF_SIZE)) != NULL) {
-#elif defined (__APPLE__) || defined (__CYGWIN__)
-	while ((pwd = getpwent()) != NULL) {
-#else
-
-	while (!getpwent_r(&pw, buf, BUF_SIZE, &pwd)) {
-#endif
-#endif
-		if (_gids_cache_lookup(pwd->pw_name, pwd->pw_gid))
-			continue;
-		if (initgroups(pwd->pw_name, pwd->pw_gid)) {
-			if ((errno == EPERM) && (getuid() != (uid_t) 0))
-				debug("initgroups:init_gids_cache: %m");
-			else
-				error("initgroups:init_gids_cache: %m");
-			continue;
-		}
-		if ((gids = _getgroups()) == NULL)
-			continue;
-		_gids_cache_register(pwd->pw_name, pwd->pw_gid, gids);
-	}
-#ifdef HAVE_AIX
-	endpwent_r(&fp);
-#else
-	endpwent();
-#endif
-
-	setgroups(ngids, orig_gids);
-	xfree(orig_gids);
 }
 
 

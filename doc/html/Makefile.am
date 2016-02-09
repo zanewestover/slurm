@@ -40,6 +40,7 @@ generated_html = \
 	high_throughput.html \
 	ibm.html \
 	ibm-pe.html \
+	intel_knl.html \
 	jobacct_gatherplugins.html \
 	job_array.html \
 	job_container_plugins.html \
@@ -54,6 +55,8 @@ generated_html = \
 	man_index.html \
 	maui.html \
 	mc_support.html \
+	mcs.html \
+	mcs_plugins.html \
 	meetings.html \
 	moab.html \
 	mpi_guide.html \
@@ -91,7 +94,6 @@ generated_html = \
 	slurmctld_plugstack.html \
 	slurm_ug_agenda.html \
 	slurm_ug_cfp.html \
-	sun_const.html \
 	switchplugins.html \
 	taskplugins.html \
 	team.html \

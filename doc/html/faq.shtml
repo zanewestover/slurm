@@ -76,8 +76,7 @@
   jobs per node?</a></li>
 <li><a href="#inc_plugin">When the Slurm daemon starts, it prints
   &quot;cannot resolve X plugin operations&quot; and exits. What does this mean?</a></li>
-<li><a href="#sigpipe">Why are user tasks intermittently dying at launch with SIGPIPE
-  error messages?</a></li>
+<li><a href="#pam_exclude">How can I exclude some users from pam_slurm?</a></li>
 <li><a href="#maint_time">How can I dry up the workload for a maintenance
   period?</a></li>
 <li><a href="#pam">How can PAM be used to control a user's limits on or
@@ -183,7 +182,6 @@ script for Slurm?</a></li>
     configuration be copied from an existing cluster to the new cluster?</a></li>
 <li><a href="#cray_dvs">How can I update Slurm on a Cray DVS file system without
 rebooting the nodes?</a></li>
-<li><a href="#pam_exclude">How can I exclude some users from pam_slurm?</a></li>
 </ol>
 
 <h2>For Management</h2>
@@ -1124,14 +1122,49 @@ file is telling the plugin to use an old plugin (say from the
 previous version of Slurm). Restart the daemon in verbose mode
 for more information (e.g. &quot;slurmctld -Dvvvvv&quot;).
 
-<p><a name="sigpipe"><b>7. Why are user tasks intermittently dying
-at launch with SIGPIPE error messages?</b></a><br>
-If you are using LDAP or some other remote name service for
-username and groups lookup, chances are that the underlying
-libc library functions are triggering the SIGPIPE.  You can likely
-work around this problem by setting <i>CacheGroups=1</i> in your slurm.conf
-file.  However, be aware that you will need to run &quot;scontrol
-reconfigure &quot; any time your groups database is updated.
+<p><a name="pam_exclude"><b>7.How can I exclude some users from pam_slurm?</b></a><br>
+<b>CAUTION:</b> Please test this on a test machine/VM before you actually do
+this on your Slurm computers.</p>
+
+<p><b>Step 1.</b> Make sure pam_listfile.so exists on your system.
+The following command is an example on Redhat 6:</p>
+<pre>
+ls -la /lib64/security/pam_listfile.so
+</pre>
+
+<p><b>Step 2.</b> Create user list (e.g. /etc/ssh/allowed_users):</p>
+<pre>
+# /etc/ssh/allowed_users
+root
+myadmin
+</pre>
+<p>And, change file mode to keep it secret from regular users(Optional):</p>
+<pre>
+chmod 600 /etc/ssh/allowed_users
+</pre>
+<p><b>NOTE:</b> root is not necessarily listed on the allowed_users, but I
+feel somewhat safe if it's on the list.</p>
+
+<p><b>Step 3.</b> On /etc/pam.d/sshd, add pam_listfile.so with sufficient flag
+before pam_slurm.so (e.g. my /etc/pam.d/sshd looks like this):</p>
+<pre>
+#%PAM-1.0
+auth       required     pam_sepermit.so
+auth       include      password-auth
+account    sufficient   pam_listfile.so item=user sense=allow file=/etc/ssh/allowed_users onerr=fail
+account    required     pam_slurm.so
+account    required     pam_nologin.so
+account    include      password-auth
+password   include      password-auth
+# pam_selinux.so close should be the first session rule
+session    required     pam_selinux.so close
+session    required     pam_loginuid.so
+# pam_selinux.so open should only be followed by sessions to be executed in the user context
+session    required     pam_selinux.so open env_params
+session    optional     pam_keyinit.so force revoke
+session    include      password-auth
+</pre>
+<p>(Information courtesy of Koji Tanaka, Indiana University)</p>
 
 <p><a name="maint_time"><b>8. How can I dry up the workload for a
 maintenance period?</b></a><br>
@@ -1769,7 +1802,7 @@ $ scontrol release &lt;jobid&gt;
 health check script for Slurm?</b></a></br>
 Probably the most comprehensive and lightweight health check tool out
 there is
-<a href="http://warewulf.lbl.gov/trac/wiki/Node%20Health%20Check">Node Health Check</a>.
+<a href="https://github.com/mej/nhc">Node Health Check</a>.
 It has integration with Slurm as well as Torque resource managers.</p>
 
 <p><a name="add_nodes"><b>47. What process should I follow to add nodes to Slurm?</b></a></br>
@@ -1845,11 +1878,16 @@ The plugin will be installed in<br>
 See the SPANK man page for configuration details.</p>
 
 <p><a name="sssd"><b>52. I am having trouble using SSSD with Slurm.</b></a></br>
-SSSD or System Security Services Deamon does not allow enumeration of group
-members by default.
-SSSD is also case sensitive, which could possible raise other issues.
-Add the following lines to <i>/etc/ssd/ssd.conf</i> on your head node to
-address these issues:</p>
+SSSD or System Security Services Deamon does not allow enumeration of
+group members by default. Note that enabling enumeration in large
+environments might not be feasible. However, as of version 16.05 slurm
+does not need enumeration, except for some specific quirky
+configurations (multiple groups with the same GID), so probably it's
+perfectly safe to leave enumeration disabled.  SSSD is also case
+sensitive by default for some configurations, which could possibly
+raise other issues.  Add the following lines
+to <i>/etc/sssd/sssd.conf</i> on your head node to address these
+issues:</p>
 <pre>
 enumerate = True
 case_sensitive = False
@@ -2088,52 +2126,8 @@ before starting the slurmds again.</p>
 <p>(Information courtesy of Douglas Jacobsen, NERSC,
 Lawrence Berkeley National Laboratory)</p>
 
-<p><a name="pam_exclude"><b>65.How can I exclude some users from pam_slurm?</b></a><br>
-<b>CAUTION:</b> Please test this on a test machine/VM before you actually do
-this on your Slurm computers.</p>
-
-<p><b>Step 1.</b> Make sure pam_listfile.so exists on your system.
-The following command is an example on Redhat 6:</p>
-<pre>
-ls -la /lib64/security/pam_listfile.so
-</pre>
-
-<p><b>Step 2.</b> Create user list (e.g. /etc/ssh/allowed_users):</p>
-<pre>
-# /etc/ssh/allowed_users
-root
-myadmin
-</pre>
-<p>And, change file mode to keep it secret from regular users(Optional):</p>
-<pre>
-chmod 600 /etc/ssh/allowed_users
-</pre>
-<p><b>NOTE:</b> root is not necessarily listed on the allowed_users, but I
-feel somewhat safe if it's on the list.</p>
-
-<p><b>Step 3.</b> On /etc/pam.d/sshd, add pam_listfile.so with sufficient flag 
-before pam_slurm.so (e.g. my /etc/pam.d/sshd looks like this):</p>
-<pre>
-#%PAM-1.0
-auth       required     pam_sepermit.so
-auth       include      password-auth
-account    sufficient   pam_listfile.so item=user sense=allow file=/etc/ssh/allowed_users onerr=fail
-account    required     pam_slurm.so
-account    required     pam_nologin.so
-account    include      password-auth
-password   include      password-auth
-# pam_selinux.so close should be the first session rule
-session    required     pam_selinux.so close
-session    required     pam_loginuid.so
-# pam_selinux.so open should only be followed by sessions to be executed in the user context
-session    required     pam_selinux.so open env_params
-session    optional     pam_keyinit.so force revoke
-session    include      password-auth
-</pre>
-<p>(Information courtesy of Koji Tanaka, Indiana University)</p>
-
 <p class="footer"><a href="#top">top</a></p>
 
-<p style="text-align:center;">Last modified 25 August 2015</p>
+<p style="text-align:center;">Last modified 13 January 2016</p>
 
 <!--#include virtual="footer.txt"-->

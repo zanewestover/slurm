@@ -53,6 +53,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <grp.h>
 
 #include "src/common/hostlist.h"
 #include "src/common/list.h"
@@ -91,6 +92,7 @@ static void   _dump_part_state(struct part_record *part_ptr,
 static uid_t *_get_groups_members(char *group_names);
 static time_t _get_group_tlm(void);
 static void   _list_delete_part(void *part_entry);
+static int    _match_part_ptr(void *part_ptr, void *key);
 static int    _open_part_state_file(char **state_file);
 static int    _uid_list_size(uid_t * uid_list_ptr);
 static void   _unlink_free_nodes(bitstr_t *old_bitmap,
@@ -908,7 +910,10 @@ extern List get_part_list(char *name, char **err_part)
 			if (job_part_list == NULL) {
 				job_part_list = list_create(NULL);
 			}
-			list_append(job_part_list, part_ptr);
+			if (!list_find_first(job_part_list, &_match_part_ptr,
+					     part_ptr)) {
+				list_append(job_part_list, part_ptr);
+			}
 		} else {
 			FREE_NULL_LIST(job_part_list);
 			if (err_part) {
@@ -1052,6 +1057,20 @@ int list_find_part(void *part_entry, void *key)
 		return 1;
 
 	if (strcmp(((struct part_record *)part_entry)->name, (char *) key) == 0)
+		return 1;
+
+	return 0;
+}
+
+/*
+ * _match_part_ptr - find an entry in the partition list, see common/list.h
+ *	for documentation
+ * IN key - partition pointer
+ * RET 1 if partition pointer matches, 0 otherwise
+ */
+static int _match_part_ptr(void *part_ptr, void *key)
+{
+	if (part_ptr == key)
 		return 1;
 
 	return 0;
@@ -1694,7 +1713,17 @@ extern int update_part (update_part_msg_t * part_desc, bool create_flag)
  */
 extern int validate_group(struct part_record *part_ptr, uid_t run_uid)
 {
-	int i = 0;
+#if defined(_SC_GETPW_R_SIZE_MAX)
+	long ii;
+#endif
+	int i = 0, res;
+	size_t buflen;
+	struct passwd pwd, *pwd_result;
+	char *buf;
+	char *grp_buffer;
+	struct group grp, *grp_result;
+	char *groups, *saveptr, *one_group_name;
+	int ret = 0;
 
 	if (part_ptr->allow_groups == NULL)
 		return 1;	/* all users allowed */
@@ -1707,8 +1736,96 @@ extern int validate_group(struct part_record *part_ptr, uid_t run_uid)
 		if (part_ptr->allow_uids[i] == run_uid)
 			return 1;
 	}
-	return 0;		/* not in this group's list */
 
+	/* The allow_uids list is built from the allow_groups list,
+	 * and if user/group enumeration has been disabled, it's
+	 * possible that the users primary group is not returned as a
+	 * member of a group.  Enumeration is problematic if the
+	 * user/group database is large (think university-wide central
+	 * account database or such), as in such environments
+	 * enumeration would load the directory servers a lot, so the
+	 * recommendation is to have it disabled (e.g. enumerate=False
+	 * in sssd.conf).  So check explicitly whether the primary
+	 * group is allowed as a final resort.  This should
+	 * (hopefully) not happen that often, and anyway the
+	 * getpwuid_r and getgrgid_r calls should be cached by
+	 * sssd/nscd/etc. so should be fast.  */
+
+	/* First figure out the primary GID.  */
+	buflen = PW_BUF_SIZE;
+#if defined(_SC_GETPW_R_SIZE_MAX)
+	ii = sysconf(_SC_GETPW_R_SIZE_MAX);
+	if (ii > buflen)
+		buflen = ii;
+#endif
+	buf = xmalloc(buflen);
+	while (1) {
+		slurm_seterrno(0);
+		res = getpwuid_r(run_uid, &pwd, buf, buflen, &pwd_result);
+		/* We need to check for !pwd_result, since it appears some
+		 * versions of this function do not return an error on
+		 * failure.
+		 */
+		if (res != 0 || !pwd_result) {
+			if (errno == ERANGE) {
+				buflen *= 2;
+				xrealloc(buf, buflen);
+				continue;
+			}
+			error("%s: Could not find passwd entry for uid %ld",
+			      __func__, (long) run_uid);
+			xfree(buf);
+			return 0;
+		}
+		break;
+	}
+
+	/* Then use the primary GID to figure out the name of the
+	 * group with that GID.  */
+#ifdef _SC_GETGR_R_SIZE_MAX
+	ii = sysconf(_SC_GETGR_R_SIZE_MAX);
+	buflen = MAX(PW_BUF_SIZE, ii);
+#endif
+	grp_buffer = xmalloc(buflen);
+	while (1) {
+		slurm_seterrno(0);
+		res = getgrgid_r(pwd.pw_gid, &grp, grp_buffer, buflen,
+				 &grp_result);
+
+		/* We need to check for !grp_result, since it appears some
+		 * versions of this function do not return an error on
+		 * failure.
+		 */
+		if (res != 0 || !grp_result) {
+			if (errno == ERANGE) {
+				buflen *= 2;
+				xrealloc(grp_buffer, buflen);
+				continue;
+			}
+			error("%s: Could not find group with gid %ld",
+			      __func__, (long) pwd.pw_gid);
+			xfree(buf);
+			xfree(grp_buffer);
+			return 0;
+		}
+		break;
+	}
+
+	/* And finally check the name of the primary group against the
+	 * list of allowed group names.  */
+	groups = xstrdup(part_ptr->allow_groups);
+	one_group_name = strtok_r(groups, ",", &saveptr);
+	while (one_group_name) {
+		if (strcmp (one_group_name, grp.gr_name) == 0) {
+			ret = 1;
+			break;
+		}
+		one_group_name = strtok_r(NULL, ",", &saveptr);
+	}
+	xfree(groups);
+	xfree(buf);
+	xfree(grp_buffer);
+	return ret;
 }
 
 /*

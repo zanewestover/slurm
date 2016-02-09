@@ -1053,8 +1053,11 @@ static char *_setup_assoc_cond_qos(slurmdb_assoc_cond_t *assoc_cond,
 	char *prefix = "t1";
 	char *extra = NULL;
 
+	/* Since this gets put in an SQL query we don't want it to be
+	 * NULL since it would print (null) instead of nothing.
+	 */
 	if (!assoc_cond)
-		return NULL;
+		return xstrdup("");
 
 	/* we need to check this first so we can update the
 	   with_sub_accts if needed since this the qos_list is a
@@ -1871,7 +1874,7 @@ static int _cluster_get_assocs(mysql_conn_t *mysql_conn,
 	 */
 	if (!is_admin && (private_data & PRIVATE_DATA_USERS)) {
 		int set = 0;
-		query = xstrdup_printf("select lft from %s_%s where user='%s'",
+		query = xstrdup_printf("select lft from \"%s_%s\" where user='%s'",
 				       cluster_name, assoc_table, user->name);
 		if (user->coord_accts) {
 			slurmdb_coord_rec_t *coord = NULL;

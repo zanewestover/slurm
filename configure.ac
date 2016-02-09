@@ -1,4 +1,3 @@
-# $Id$
 # This file is to be processed with autoconf to generate a configure script
 
 dnl Prologue
@@ -134,7 +133,7 @@ AC_CHECK_HEADERS(mcheck.h values.h socket.h sys/socket.h  \
 		 pty.h utmp.h \
 		 sys/syslog.h linux/sched.h \
 		 kstat.h paths.h limits.h sys/statfs.h sys/ptrace.h \
-		 sys/termios.h float.h sys/statvfs.h
+		 float.h sys/statvfs.h
 		)
 AC_HEADER_SYS_WAIT
 AC_HEADER_TIME
@@ -228,10 +227,8 @@ LDFLAGS="$LDFLAGS "
 CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 LIBS="$PTHREAD_LIBS $LIBS"
 
-X_AC_SUN_CONST
 X_AC_DIMENSIONS
 
-X_AC_CFLAGS
 X_AC_OFED
 
 AX_LIB_HDF5()
@@ -432,7 +429,6 @@ AM_CONDITIONAL(BUILD_SMAP, test "x$ac_build_smap" = "xyes")
 dnl All slurm Makefiles:
 
 AC_CONFIG_FILES([Makefile
-		 config.xml
 		 auxdir/Makefile
 		 contribs/Makefile
 		 contribs/cray/Makefile
@@ -448,6 +444,7 @@ AC_CONFIG_FILES([Makefile
 		 contribs/perlapi/libslurmdb/perl/Makefile.PL
 		 contribs/seff/Makefile
 		 contribs/torque/Makefile
+		 contribs/openlava/Makefile
 		 contribs/phpext/Makefile
 		 contribs/phpext/slurm_php/config.m4
 		 contribs/sgather/Makefile
@@ -575,20 +572,26 @@ AC_CONFIG_FILES([Makefile
 		 src/plugins/job_container/none/Makefile
 		 src/plugins/job_submit/Makefile
 		 src/plugins/job_submit/all_partitions/Makefile
-		 src/plugins/job_submit/cnode/Makefile
 		 src/plugins/job_submit/cray/Makefile
 		 src/plugins/job_submit/defaults/Makefile
+		 src/plugins/job_submit/knl/Makefile
 		 src/plugins/job_submit/logging/Makefile
 		 src/plugins/job_submit/lua/Makefile
 		 src/plugins/job_submit/partition/Makefile
 		 src/plugins/job_submit/pbs/Makefile
 		 src/plugins/job_submit/require_timelimit/Makefile
 		 src/plugins/job_submit/throttle/Makefile
+		 src/plugins/knl/Makefile
+		 src/plugins/knl/cray/Makefile
 		 src/plugins/launch/Makefile
 		 src/plugins/launch/aprun/Makefile
 		 src/plugins/launch/poe/Makefile
 		 src/plugins/launch/runjob/Makefile
 		 src/plugins/launch/slurm/Makefile
+		 src/plugins/mcs/Makefile
+		 src/plugins/mcs/none/Makefile
+		 src/plugins/mcs/group/Makefile
+		 src/plugins/mcs/user/Makefile
 		 src/plugins/power/Makefile
 		 src/plugins/power/common/Makefile
 		 src/plugins/power/cray/Makefile

@@ -99,7 +99,6 @@ static char *_global_auth_key(void);
 static void  _remap_slurmctld_errno(void);
 static int   _unpack_msg_uid(Buf buffer);
 static bool  _is_port_ok(int, uint16_t);
-static void _slurm_set_addr_any(slurm_addr_t * slurm_address, uint16_t port);
 
 #if _DEBUG
 static void _print_data(char *data, int len);
@@ -235,14 +234,6 @@ uint32_t slurm_get_cpu_freq_govs(void)
 	}
 	return cpu_freq_govs;
 }
-
-/* update internal configuration data structure as needed.
- *	exit with lock set */
-/* static inline void _lock_update_config() */
-/* { */
-/* 	slurm_api_set_default_config(); */
-/* 	slurm_mutex_lock(&config_lock); */
-/* } */
 
 /* slurm_get_batch_start_timeout
  * RET BatchStartTimeout value from slurm.conf
@@ -1290,7 +1281,9 @@ extern int slurm_set_tree_width(uint16_t tree_width)
  */
 extern uint16_t slurm_get_tree_width(void)
 {
-	uint16_t tree_width = 0;
+	/* initialize to 1 to silence later warnings
+	 * about potential division by zero */
+	uint16_t tree_width = 1;
 	slurm_ctl_conf_t *conf;
 
 	if (slurmdbd_conf) {
@@ -1416,6 +1409,24 @@ char *slurm_get_job_submit_plugins(void)
 		slurm_conf_unlock();
 	}
 	return job_submit_plugins;
+}
+
+/* slurm_get_knl_plugins
+ * get knl_plugins from slurmctld_conf object from slurmctld_conf object
+ * RET char *   - knl_plugins, MUST be xfreed by caller
+ */
+char *slurm_get_knl_plugins(void)
+{
+	char *knl_plugins = NULL;
+	slurm_ctl_conf_t *conf;
+
+	if (slurmdbd_conf) {
+	} else {
+		conf = slurm_conf_lock();
+		knl_plugins = xstrdup(conf->knl_plugins);
+		slurm_conf_unlock();
+	}
+	return knl_plugins;
 }
 
 /* slurm_get_slurmctld_plugstack
@@ -1703,9 +1714,13 @@ extern char *slurm_get_auth_info(void)
 	char *auth_info;
 	slurm_ctl_conf_t *conf;
 
-	conf = slurm_conf_lock();
-	auth_info = xstrdup(conf->authinfo);
-	slurm_conf_unlock();
+	if (slurmdbd_conf) {
+		auth_info = xstrdup(slurmdbd_conf->auth_info);
+	} else {
+		conf = slurm_conf_lock();
+		auth_info = xstrdup(conf->authinfo);
+		slurm_conf_unlock();
+	}
 
 	return auth_info;
 }
@@ -1724,8 +1739,8 @@ extern int slurm_get_auth_ttl(void)
 		return ttl;
 
 	auth_info = slurm_get_auth_info();
-        if (!auth_info)
-                return 0;
+	if (!auth_info)
+		return 0;
 
 	tmp = strstr(auth_info, "ttl=");
 	if (tmp) {
@@ -2241,6 +2256,38 @@ int slurm_set_launch_type(char *launch_type)
 	return 0;
 }
 
+/* slurm_get_mcs_plugin
+ * RET mcs_plugin name, must be xfreed by caller */
+char *slurm_get_mcs_plugin(void)
+{
+	char *mcs_plugin = NULL;
+	slurm_ctl_conf_t *conf;
+
+	if (slurmdbd_conf) {
+	} else {
+		conf = slurm_conf_lock();
+		mcs_plugin = xstrdup(conf->mcs_plugin);
+		slurm_conf_unlock();
+	}
+	return mcs_plugin;
+}
+
+/* slurm_get_mcs_plugin_params
+ * RET mcs_plugin_params name, must be xfreed by caller */
+char *slurm_get_mcs_plugin_params(void)
+{
+	char *mcs_plugin_params = NULL;
+	slurm_ctl_conf_t *conf;
+
+	if (slurmdbd_conf) {
+	} else {
+		conf = slurm_conf_lock();
+		mcs_plugin_params = xstrdup(conf->mcs_plugin_params);
+		slurm_conf_unlock();
+	}
+	return mcs_plugin_params;
+}
+
 /* slurm_get_preempt_type
  * get PreemptType from slurmctld_conf object
  * RET char *   - preempt type, MUST be xfreed by caller
@@ -2715,17 +2762,17 @@ slurm_fd_t slurm_init_msg_engine_port(uint16_t port)
 {
 	slurm_fd_t cc;
 	slurm_addr_t addr;
-	int cnt;
+	int i;
 
-	cnt = 0;
-eagain:
 	slurm_setup_sockaddr(&addr, port);
 	cc = slurm_init_msg_engine(&addr);
-	if (cc < 0 && port == 0) {
-		++cnt;
-		if (cnt <= 5) {
-			usleep(5000);
-			goto eagain;
+	if ((cc < 0) && (port == 0) && (errno == EADDRINUSE)) {
+		/* All ephemeral ports are in use, test other ports */
+		for (i = 10001; i < 65536; i++) {
+			slurm_setup_sockaddr(&addr, i);
+			cc = slurm_init_msg_engine(&addr);
+			if (cc >= 0)
+				break;
 		}
 	}
 	return cc;
@@ -2777,26 +2824,11 @@ slurm_init_msg_engine_ports(uint16_t *ports)
 slurm_fd_t slurm_init_msg_engine_addrname_port(char *addr_name, uint16_t port)
 {
 	slurm_addr_t addr;
-	static uint32_t bind_addr = NO_VAL;
-
-	if (bind_addr == NO_VAL) {
-#ifdef BIND_SPECIFIC_ADDR
-		bind_addr = 1;
-#else
-		char *topology_params = slurm_get_topology_param();
-		if (topology_params &&
-		    slurm_strcasestr(topology_params, "NoInAddrAny"))
-			bind_addr = 1;
-		else
-			bind_addr = 0;
-		xfree(topology_params);
-#endif
-	}
 
 	if (addr_name)
 		slurm_set_addr(&addr, port, addr_name);
 	else
-		_slurm_set_addr_any(&addr, port);
+		slurm_setup_sockaddr(&addr, port);
 
 	return slurm_init_msg_engine(&addr);
 }
@@ -3428,14 +3460,7 @@ int slurm_receive_msg_and_forward(slurm_fd_t fd, slurm_addr_t *orig_addr,
 		FREE_NULL_LIST(header.ret_list);
 		header.ret_list = NULL;
 	}
-	//info("ret_cnt = %d",header.ret_cnt);
-	/* if (header.ret_cnt > 0) { */
-/* 		while ((ret_data_info = list_pop(header.ret_list))) */
-/* 			list_push(msg->ret_list, ret_data_info); */
-/* 		header.ret_cnt = 0; */
-/* 		FREE_NULL_LIST(header.ret_list); */
-/* 		header.ret_list = NULL; */
-/* 	} */
+
 	/*
 	 * header.orig_addr will be set to where the first message
 	 * came from if this is a forward else we set the
@@ -3732,16 +3757,6 @@ size_t slurm_read_stream_timeout(slurm_fd_t open_fd, char *buffer,
 /**********************************************************************\
  * address conversion and management functions
 \**********************************************************************/
-
-/* slurm_set_addr_any
- * initialized the slurm_address with the supplied port on INADDR_ANY
- * OUT slurm_address	- slurm_addr_t to be filled in
- * IN port		- port in host order
- */
-static void _slurm_set_addr_any(slurm_addr_t * slurm_address, uint16_t port)
-{
-	slurm_set_addr_uint(slurm_address, port, SLURM_INADDR_ANY);
-}
 
 /* slurm_set_addr
  * initializes the slurm_address with the supplied port and host name

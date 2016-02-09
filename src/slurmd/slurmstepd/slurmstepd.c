@@ -51,6 +51,7 @@
 #include "src/common/gres.h"
 #include "src/common/node_select.h"
 #include "src/common/plugstack.h"
+#include "src/common/slurm_auth.h"
 #include "src/common/slurm_jobacct_gather.h"
 #include "src/common/slurm_acct_gather_profile.h"
 #include "src/common/slurm_mpi.h"
@@ -114,6 +115,8 @@ main (int argc, char *argv[])
 	init_setproctitle(argc, argv);
 	if (slurm_select_init(1) != SLURM_SUCCESS )
 		fatal( "failed to initialize node selection plugin" );
+	if (slurm_auth_init(NULL) != SLURM_SUCCESS)
+		fatal( "failed to initialize authentication plugin" );
 
 	/* Receive job parameters from the slurmd */
 	_init_from_slurmd(STDIN_FILENO, argv, &cli, &self, &msg,
@@ -413,7 +416,7 @@ _init_from_slurmd(int sock, char **argv,
 	debug3("step_type = %d", step_type);
 
 	/* receive reverse-tree info from slurmd */
-	pthread_mutex_lock(&step_complete.lock);
+	slurm_mutex_lock(&step_complete.lock);
 	safe_read(sock, &step_complete.rank, sizeof(int));
 	safe_read(sock, &step_complete.parent_rank, sizeof(int));
 	safe_read(sock, &step_complete.children, sizeof(int));
@@ -422,7 +425,7 @@ _init_from_slurmd(int sock, char **argv,
 	safe_read(sock, &step_complete.parent_addr, sizeof(slurm_addr_t));
 	step_complete.bits = bit_alloc(step_complete.children);
 	step_complete.jobacct = jobacctinfo_create(NULL);
-	pthread_mutex_unlock(&step_complete.lock);
+	slurm_mutex_unlock(&step_complete.lock);
 
 	/* receive conf from slurmd */
 	if ((conf = read_slurmd_conf_lite (sock)) == NULL)

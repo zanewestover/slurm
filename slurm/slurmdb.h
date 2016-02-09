@@ -188,6 +188,7 @@ typedef enum {
 #define CLUSTER_FLAG_BGP    0x00000004 /* This is a bluegene/p cluster */
 #define CLUSTER_FLAG_BGQ    0x00000008 /* This is a bluegene/q cluster */
 #define CLUSTER_FLAG_SC     0x00000010 /* This is a sun constellation cluster */
+				       /* Removed v16.05 */
 #define CLUSTER_FLAG_XCPU   0x00000020 /* This has xcpu, removed v15.08 */
 #define CLUSTER_FLAG_AIX    0x00000040 /* This is an aix cluster */
 #define CLUSTER_FLAG_MULTSD 0x00000080 /* This cluster is multiple slurmd */
@@ -724,6 +725,8 @@ typedef struct {
 } slurmdb_job_rec_t;
 
 typedef struct {
+	List acct_limit_list; /* slurmdb_used_limits_t's (DON'T PACK
+			       * for state file) */
 	List job_list; /* list of job pointers to submitted/running
 			  jobs (DON'T PACK) */
 	uint32_t grp_used_jobs;	/* count of active jobs (DON'T PACK
@@ -781,8 +784,12 @@ typedef struct {
 					   * (DON'T PACK) */
 	uint32_t grp_wall; /* total time in hours this qos can run for */
 
+	uint32_t max_jobs_pa;	/* max number of jobs an account can
+				 * run with this qos at one time */
 	uint32_t max_jobs_pu;	/* max number of jobs a user can
 				 * run with this qos at one time */
+	uint32_t max_submit_jobs_pa; /* max number of jobs an account can
+					submit with this qos at once */
 	uint32_t max_submit_jobs_pu; /* max number of jobs a user can
 					submit with this qos at once */
 	char *max_tres_mins_pj;    /* max number of tres seconds this
@@ -791,6 +798,12 @@ typedef struct {
 					  * based off the ordering of the
 					  * total number of TRES in the system
 					  * (DON'T PACK) */
+	char *max_tres_pa;         /* max number of tres this
+				    * QOS can allocate per account */
+	uint64_t *max_tres_pa_ctld;   /* max_tres_pa broken out in an array
+				       * based off the ordering of the
+				       * total number of TRES in the system
+				       * (DON'T PACK) */
 	char *max_tres_pj;         /* max number of tres this
 				    * qos can allocate per job */
 	uint64_t *max_tres_pj_ctld;   /* max_tres_pj broken out in an array
@@ -809,6 +822,18 @@ typedef struct {
 				       * based off the ordering of the
 				       * total number of TRES in the system
 				       * (DON'T PACK) */
+	char *max_tres_run_mins_pa;   /* max number of tres minutes this
+				       * qos can having running at one
+				       * time per account, currently
+				       * this doesn't do anything.
+				       */
+	uint64_t *max_tres_run_mins_pa_ctld; /* max_tres_run_mins_pa
+					      * broken out in an array
+					      * based off the ordering
+					      * of the total number of TRES in
+					      * the system, currently
+					      * this doesn't do anything.
+					      * (DON'T PACK) */
 	char *max_tres_run_mins_pu;   /* max number of tres minutes this
 				       * qos can having running at one
 				       * time, currently this doesn't
@@ -978,15 +1003,16 @@ typedef struct {
 } slurmdb_txn_rec_t;
 
 /* Right now this is used in the slurmdb_qos_rec_t structure.  In the
- * user_limit_list. */
+ * user_limit_list and acct_limit_list. */
 typedef struct {
+	char *acct; /* If limits for an account this is the accounts name */
 	uint32_t jobs;	/* count of active jobs */
 	uint32_t submit_jobs; /* count of jobs pending or running */
 	uint64_t *tres; /* array of TRES allocated */
 	uint64_t *tres_run_mins; /* array of how many TRES mins are
 				  * allocated currently, currently this doesn't
 				  * do anything and isn't set up. */
-	uint32_t uid;
+	uint32_t uid; /* If limits for a user this is the users uid */
 } slurmdb_used_limits_t;
 
 typedef struct {

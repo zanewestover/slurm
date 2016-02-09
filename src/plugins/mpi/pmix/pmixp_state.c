@@ -58,10 +58,7 @@ int pmixp_state_init(void)
 #endif
 	_pmixp_state.coll = list_create(_xfree_coll);
 
-	pthread_mutexattr_t attr;
-	pthread_mutexattr_init(&attr);
-	pthread_mutex_init(&_pmixp_state.lock, &attr);
-	pthread_mutexattr_destroy(&attr);
+	slurm_mutex_init(&_pmixp_state.lock);
 	return SLURM_SUCCESS;
 }
 
@@ -74,7 +71,7 @@ void pmixp_state_finalize(void)
 }
 
 static bool _compare_ranges(const pmix_proc_t *r1, const pmix_proc_t *r2,
-		size_t nprocs)
+			    size_t nprocs)
 {
 	int i;
 	for (i = 0; i < nprocs; i++) {
@@ -113,7 +110,7 @@ static pmixp_coll_t *_find_collective(pmixp_coll_type_t type,
 			goto exit;
 		}
 	}
-      exit:
+exit:
 	list_iterator_destroy(it);
 	return ret;
 }
@@ -144,7 +141,7 @@ pmixp_coll_t *pmixp_state_coll_get(pmixp_coll_type_t type,
 		return NULL;
 	}
 
-	pthread_mutex_lock(&_pmixp_state.lock);
+	slurm_mutex_lock(&_pmixp_state.lock);
 
 	if (NULL == (ret = _find_collective(type, procs, nprocs))) {
 		/* 1. Create and insert unitialized but locked coll
@@ -163,7 +160,7 @@ pmixp_coll_t *pmixp_state_coll_get(pmixp_coll_type_t type,
 		}
 	}
 
-	pthread_mutex_unlock(&_pmixp_state.lock);
+	slurm_mutex_unlock(&_pmixp_state.lock);
 	return ret;
 }
 

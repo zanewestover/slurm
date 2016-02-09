@@ -127,6 +127,7 @@
 #define OPT_CORE_SPEC   0x1a
 #define OPT_POWER       0x1c
 #define OPT_THREAD_SPEC 0x1d
+#define OPT_BCAST       0x1e
 #define OPT_PROFILE     0x20
 #define OPT_EXPORT	0x21
 #define OPT_HINT	0x22
@@ -135,6 +136,7 @@
 #define LONG_OPT_HELP        0x100
 #define LONG_OPT_USAGE       0x101
 #define LONG_OPT_XTO         0x102
+#define LONG_OPT_BCAST       0x103
 #define LONG_OPT_TIMEO       0x104
 #define LONG_OPT_JOBID       0x105
 #define LONG_OPT_TMP         0x106
@@ -206,6 +208,8 @@
 #define LONG_OPT_EXPORT          0x158
 #define LONG_OPT_PRIORITY        0x160
 #define LONG_OPT_ACCEL_BIND      0x161
+#define LONG_OPT_MCS_LABEL       0x165
+#define LONG_OPT_DEADLINE        0x166
 
 extern char **environ;
 
@@ -459,6 +463,8 @@ static void _opt_default(void)
 	opt.shared = (uint16_t)NO_VAL;
 	opt.exclusive = false;
 	opt.export_env = NULL;
+	opt.bcast_flag = false;
+	opt.bcast_file = NULL;
 	opt.no_kill = false;
 	opt.kill_bad_exit = NO_VAL;
 
@@ -541,9 +547,10 @@ static void _opt_default(void)
 	opt.launcher_opts = NULL;
 	opt.launch_cmd = false;
 
-	opt.nice = 0;
+	opt.nice = NO_VAL;
 	opt.priority = 0;
 	opt.power_flags = 0;
+	opt.mcs_label = NULL;
 }
 
 /*---[ env var processing ]-----------------------------------------------*/
@@ -568,6 +575,7 @@ env_vars_t env_vars[] = {
 {"SLURMD_DEBUG",        OPT_INT,        &opt.slurmd_debug,  NULL             },
 {"SLURM_ACCOUNT",       OPT_STRING,     &opt.account,       NULL             },
 {"SLURM_ACCTG_FREQ",    OPT_STRING,     &opt.acctg_freq,    NULL             },
+{"SLURM_BCAST",         OPT_BCAST,      NULL,               NULL             },
 {"SLURM_BLRTS_IMAGE",   OPT_STRING,     &opt.blrtsimage,    NULL             },
 {"SLURM_BURST_BUFFER",  OPT_STRING,     &opt.burst_buffer,  NULL             },
 {"SLURM_CHECKPOINT",    OPT_STRING,     &opt.ckpt_interval_str, NULL         },
@@ -753,9 +761,11 @@ _process_env_var(env_vars_t *e, const char *val)
 	case OPT_EXCLUSIVE:
 		if (val[0] == '\0') {
 			opt.exclusive = true;
-			opt.shared = 0;
+			opt.shared = JOB_SHARED_NONE;
 		} else if (!strcasecmp(val, "user")) {
-			opt.shared = 2;
+			opt.shared = JOB_SHARED_USER;
+		} else if (!strcasecmp(val, "mcs")) {
+			opt.shared = JOB_SHARED_MCS;
 		} else {
 			error("\"%s=%s\" -- invalid value, ignoring...",
 			      e->var, val);
@@ -765,6 +775,14 @@ _process_env_var(env_vars_t *e, const char *val)
 	case OPT_EXPORT:
 		xfree(opt.export_env);
 		opt.export_env = xstrdup(val);
+		break;
+
+	case OPT_BCAST:
+		if (val) {
+			xfree(opt.bcast_file);
+			opt.bcast_file = xstrdup(val);
+		}
+		opt.bcast_flag = true;
 		break;
 
 	case OPT_RESV_PORTS:
@@ -906,6 +924,7 @@ static void _set_options(const int argc, char **argv)
 		{"acctg-freq",       required_argument, 0, LONG_OPT_ACCTG_FREQ},
 		{"bb",               required_argument, 0, LONG_OPT_BURST_BUFFER_SPEC},
 		{"bbf",              required_argument, 0, LONG_OPT_BURST_BUFFER_FILE},
+		{"bcast",            optional_argument, 0, LONG_OPT_BCAST},
 		{"begin",            required_argument, 0, LONG_OPT_BEGIN},
 		{"blrts-image",      required_argument, 0, LONG_OPT_BLRTS_IMAGE},
 		{"checkpoint",       required_argument, 0, LONG_OPT_CHECKPOINT},
@@ -917,6 +936,7 @@ static void _set_options(const int argc, char **argv)
 		{"cores-per-socket", required_argument, 0, LONG_OPT_CORESPERSOCKET},
 		{"cpu_bind",         required_argument, 0, LONG_OPT_CPU_BIND},
 		{"cpu-freq",         required_argument, 0, LONG_OPT_CPU_FREQ},
+		{"deadline",         required_argument, 0, LONG_OPT_DEADLINE},
 		{"debugger-test",    no_argument,       0, LONG_OPT_DEBUG_TS},
 		{"epilog",           required_argument, 0, LONG_OPT_EPILOG},
 		{"exclusive",        optional_argument, 0, LONG_OPT_EXCLUSIVE},
@@ -934,6 +954,7 @@ static void _set_options(const int argc, char **argv)
 		{"mail-type",        required_argument, 0, LONG_OPT_MAIL_TYPE},
 		{"mail-user",        required_argument, 0, LONG_OPT_MAIL_USER},
 		{"max-exit-timeout", required_argument, 0, LONG_OPT_XTO},
+		{"mcs-label",        required_argument, 0, LONG_OPT_MCS_LABEL},
 		{"mem",              required_argument, 0, LONG_OPT_MEM},
 		{"mem-per-cpu",      required_argument, 0, LONG_OPT_MEM_PER_CPU},
 		{"mem_bind",         required_argument, 0, LONG_OPT_MEM_BIND},
@@ -1238,12 +1259,22 @@ static void _set_options(const int argc, char **argv)
 		case LONG_OPT_CONT:
 			opt.contiguous = true;
 			break;
+		case LONG_OPT_DEADLINE:
+			opt.deadline = parse_time(optarg, 0);
+			if (errno == ESLURM_INVALID_TIME_VALUE) {
+				error("Invalid deadline specification %s",
+				       optarg);
+				exit(error_exit);
+			}
+			break;
                 case LONG_OPT_EXCLUSIVE:
 			if (optarg == NULL) {
 				opt.exclusive = true;
-				opt.shared = 0;
+				opt.shared = JOB_SHARED_NONE;
 			} else if (!strcasecmp(optarg, "user")) {
-				opt.shared = 2;
+				opt.shared = JOB_SHARED_USER;
+			} else if (!strcasecmp(optarg, "mcs")) {
+				opt.shared = JOB_SHARED_MCS;
 			} else {
 				error("invalid exclusive option %s", optarg);
 				exit(error_exit);
@@ -1253,6 +1284,13 @@ static void _set_options(const int argc, char **argv)
 			xfree(opt.export_env);
 			opt.export_env = xstrdup(optarg);
 			break;
+                case LONG_OPT_BCAST:
+			if (optarg) {
+				xfree(opt.bcast_file);
+				opt.bcast_file = xstrdup(optarg);
+			}
+			opt.bcast_flag = true;
+                        break;
                 case LONG_OPT_CPU_BIND:
 			if (slurm_verify_cpu_bind(optarg, &opt.cpu_bind,
 						  &opt.cpu_bind_type))
@@ -1454,6 +1492,11 @@ static void _set_options(const int argc, char **argv)
 			xfree(opt.mail_user);
 			opt.mail_user = xstrdup(optarg);
 			break;
+		case LONG_OPT_MCS_LABEL: {
+			xfree(opt.mcs_label);
+			opt.mcs_label = xstrdup(optarg);
+			break;
+		}
 		case LONG_OPT_TASK_PROLOG:
 			xfree(opt.task_prolog);
 			opt.task_prolog = xstrdup(optarg);
@@ -1467,11 +1510,6 @@ static void _set_options(const int argc, char **argv)
 				opt.nice = strtol(optarg, NULL, 10);
 			else
 				opt.nice = 100;
-			if (abs(opt.nice) > NICE_OFFSET) {
-				error("Invalid nice value, must be between "
-				      "-%d and %d", NICE_OFFSET, NICE_OFFSET);
-				exit(error_exit);
-			}
 			if (opt.nice < 0) {
 				uid_t my_uid = getuid();
 				if ((my_uid != 0) &&
@@ -1848,9 +1886,9 @@ static void _opt_args(int argc, char **argv)
 	}
 #else
 	(void) launch_g_handle_multi_prog_verify(command_pos);
-	if (test_exec) {
+	if (test_exec || opt.bcast_flag) {
 		if ((fullpath = search_path(opt.cwd, opt.argv[command_pos],
-					    false, X_OK, test_exec))) {
+					    false, X_OK, true))) {
 			xfree(opt.argv[command_pos]);
 			opt.argv[command_pos] = fullpath;
 		} else {
@@ -2211,7 +2249,10 @@ static bool _opt_verify(void)
 		if (opt.time_min == 0)
 			opt.time_min = INFINITE;
 	}
-
+	if ((opt.deadline) && (opt.begin) && (opt.deadline < opt.begin)) {
+		error("Incompatible begin and deadline time specification");
+		exit(error_exit);
+	}
 	if (opt.ckpt_interval_str) {
 		opt.ckpt_interval = time_str2mins(opt.ckpt_interval_str);
 		if ((opt.ckpt_interval < 0) &&
@@ -2473,6 +2514,10 @@ static void _opt_list(void)
 	if (opt.gres)
 		info("gres           : %s", opt.gres);
 	info("exclusive      : %s", tf_(opt.exclusive));
+	if (opt.bcast_file)
+		info("bcast          : %s", opt.bcast_file);
+	else
+		info("bcast          : %s", tf_(opt.bcast_flag));
 	info("qos            : %s", opt.qos);
 	if (opt.shared != (uint16_t) NO_VAL)
 		info("shared         : %u", opt.shared);
@@ -2518,6 +2563,11 @@ static void _opt_list(void)
 		slurm_make_time_str(&opt.begin, time_str, sizeof(time_str));
 		info("begin          : %s", time_str);
 	}
+	if (opt.deadline) {
+		char time_str[32];
+		slurm_make_time_str(&opt.deadline, time_str, sizeof(time_str));
+		info("deadline       : %s", time_str);
+	}
 	info("prolog         : %s", opt.prolog);
 	info("epilog         : %s", opt.epilog);
 	info("mail_type      : %s", print_mail_type(opt.mail_type));
@@ -2544,6 +2594,8 @@ static void _opt_list(void)
 	info("power             : %s", power_flags_str(opt.power_flags));
 	str = print_commandline(opt.argc, opt.argv);
 	info("remote command    : `%s'", str);
+	if (opt.mcs_label)
+		info("mcs-label         : %s",opt.mcs_label);
 	xfree(str);
 
 }
@@ -2632,12 +2684,12 @@ static void _usage(void)
 "            [--mail-type=type] [--mail-user=user] [--nice[=value]]\n"
 "            [--prolog=fname] [--epilog=fname]\n"
 "            [--task-prolog=fname] [--task-epilog=fname]\n"
-"            [--ctrl-comm-ifhn=addr] [--multi-prog]\n"
+"            [--ctrl-comm-ifhn=addr] [--multi-prog] [--mcs-label=mcs]\n"
 "            [--cpu-freq=min[-max[:gov]] [--power=flags]\n"
 "            [--switches=max-switches{@max-time-to-wait}] [--reboot]\n"
 "            [--core-spec=cores] [--thread-spec=threads]\n"
 "            [--bb=burst_buffer_spec] [--bbf=burst_buffer_file]\n"
-"            [--acctg-freq=<datatype>=<interval>\n"
+"            [--acctg-freq=<datatype>=<interval>} [--bcast=<dest_path>]\n"
 "            [-w hosts...] [-x hosts...] executable [args...]\n");
 
 }
@@ -2657,6 +2709,7 @@ static void _help(void)
 "                              network=<interval> filesystem=<interval>\n"
 "      --bb=<spec>             burst buffer specifications\n"
 "      --bbf=<file_name>       burst buffer specification file\n"
+"      --bcast=<dest_path>     Copy executable file to compute nodes\n"
 "      --begin=time            defer job until HH:MM MM/DD/YY\n"
 "  -c, --cpus-per-task=ncpus   number of cpus required per task\n"
 "      --checkpoint=time       job step checkpoint interval\n"
@@ -2665,6 +2718,8 @@ static void _help(void)
 "      --comment=name          arbitrary comment\n"
 "      --cpu-freq=min[-max[:gov]] requested cpu frequency (and governor)\n"
 "  -d, --dependency=type:jobid defer job until condition on jobid is satisfied\n"
+"      --deadline=time         remove the job if no ending possible before\n"
+"                              this deadline (start > (deadline - time[-min]))\n"
 "  -D, --chdir=path            change remote current working directory\n"
 "      --export=env_vars|NONE  environment variables passed to launcher with\n"
 "                              optional values or NONE (pass no variables)\n"
@@ -2692,6 +2747,7 @@ static void _help(void)
 "      --mail-type=type        notify on state change: BEGIN, END, FAIL or ALL\n"
 "      --mail-user=user        who to send email notification for job state\n"
 "                              changes\n"
+"      --mcs-label=mcs         mcs label if mcs plugin mcs/group is used\n"
 "      --mpi=type              type of MPI being used\n"
 "      --multi-prog            if set the program name specified is the\n"
 "                              configuration specification for multiple programs\n"
@@ -2753,6 +2809,10 @@ static void _help(void)
 "Consumable resources related options:\n"
 "      --exclusive[=user]      allocate nodes in exclusive mode when\n"
 "                              cpu consumable resource is enabled\n"
+"                              or don't share CPUs for job steps\n"
+"      --exclusive[=mcs]       allocate nodes in exclusive mode when\n"
+"                              cpu consumable resource is enabled\n"
+"                              and mcs plugin is enabled\n"
 "                              or don't share CPUs for job steps\n"
 "      --mem-per-cpu=MB        maximum amount of real memory per allocated\n"
 "                              cpu required by the job.\n"

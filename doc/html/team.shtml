@@ -62,6 +62,7 @@ Lead Slurm developers are:
 <br>
 <li>Luis Cabellos (Instituto de Fisica de Cantabria, Spain)</li>
 <li>Thomas Cadeau (Bull)</li>
+<li>Kilian Cavalotti (Standford)</li>
 <li>Hongjia Cao (National University of Defense Technology, China)</li>
 <li>Jimmy Cao (Greenplum/EMC)</li>
 <li>Nate Caraor (Penn State University)</li>
@@ -110,6 +111,7 @@ Lead Slurm developers are:
 <li>Takao Hatazaki (HP)</li>
 <li>Matthieu Hautreux (CEA, France)</li>
 <li>Dave Henseler (Cray)</li>
+<li>John Hensley (University of Michigan)</li>
 <li>Chris Holmes (HP)</li>
 <li>David H&ouml;ppner</li>
 <li>Axel Huebl (TU Dresden, Germany)</li>
@@ -181,7 +183,7 @@ Lead Slurm developers are:
 <li>Dan Phung (Lawrence Livermore National Laboratory/Columbia University)</li>
 <li>Ashley Pittman (Quadrics, UK)</li>
 <li>Josko Plazonic (Princecton University)</li>
-<li>Artem Polyakov (ISP SB RAS, Russia)</li>
+<li>Artem Y. Polyakov (Mellanox Technologies, ISP SB RAS, Russia)</li>
 <li>Ludovic Prevost (NEC, France)</li>
 <br>
 <li>Vijay Ramasubramanian (University of Maryland)</li>
@@ -195,6 +197,7 @@ Lead Slurm developers are:
 <li>Manuel Rodríguez-Pascual (CIEMAT, Spain)</li>
 <li>Andy Roosen (University of Deleware)</li>
 <li>Miguel Ros (Barcelona Supercomputing Center, Spain)</li>
+<li>Aline Roy (CEA, France)</li>
 <li>Beat Rubischon (DALCO AG, Switzerland)</li>
 <li>Simon Ruderich</li>
 <li>Dan Rusak (Bull)</li>
@@ -204,6 +207,7 @@ Lead Slurm developers are:
 <li>Aleksej Saushev</li>
 <li>Uwe Sauter (High Performance Computing Center Stuttgart, Germany)</li>
 <li>Chris Scheller (University of Michigan)</li>
+<li>Alejandro (Alex) Sanchez (SchedMD)</li>
 <li>Rod Schultz (Bull)</li>
 <li>Samuel Senoner (Vienna University of Technology, Austria)</li>
 <li>David Singleton</li>
@@ -226,6 +230,7 @@ Lead Slurm developers are:
 <br>
 <li>Garrison Vaughan</li>
 <br>
+<li>Yu Watanabe</li>
 <li>Pythagoras Watson  (Lawrence Livermore National Laboratory)</li>
 <li>Daniel M. Weeks (Rensselaer Polytechnic Institute)</li>
 <li>Nathan Weeks (Iowa State University)</li>

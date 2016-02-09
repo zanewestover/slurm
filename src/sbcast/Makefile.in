@@ -109,7 +109,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_aix.m4 \
 	$(top_srcdir)/auxdir/x_ac_blcr.m4 \
 	$(top_srcdir)/auxdir/x_ac_bluegene.m4 \
-	$(top_srcdir)/auxdir/x_ac_cflags.m4 \
 	$(top_srcdir)/auxdir/x_ac_cray.m4 \
 	$(top_srcdir)/auxdir/x_ac_curl.m4 \
 	$(top_srcdir)/auxdir/x_ac_databases.m4 \
@@ -138,7 +137,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_setproctitle.m4 \
 	$(top_srcdir)/auxdir/x_ac_sgi_job.m4 \
 	$(top_srcdir)/auxdir/x_ac_slurm_ssl.m4 \
-	$(top_srcdir)/auxdir/x_ac_sun_const.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -150,7 +148,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_sbcast_OBJECTS = agent.$(OBJEXT) sbcast.$(OBJEXT) opts.$(OBJEXT)
+am_sbcast_OBJECTS = sbcast.$(OBJEXT) opts.$(OBJEXT)
 sbcast_OBJECTS = $(am_sbcast_OBJECTS)
 am__DEPENDENCIES_1 =
 sbcast_DEPENDENCIES = $(top_builddir)/src/api/libslurm.o \
@@ -282,6 +280,7 @@ FREEIPMI_CPPFLAGS = @FREEIPMI_CPPFLAGS@
 FREEIPMI_LDFLAGS = @FREEIPMI_LDFLAGS@
 FREEIPMI_LIBS = @FREEIPMI_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
+GLIB_COMPILE_RESOURCES = @GLIB_COMPILE_RESOURCES@
 GLIB_GENMARSHAL = @GLIB_GENMARSHAL@
 GLIB_LIBS = @GLIB_LIBS@
 GLIB_MKENUMS = @GLIB_MKENUMS@
@@ -363,6 +362,8 @@ PAM_DIR = @PAM_DIR@
 PAM_LIBS = @PAM_LIBS@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 PMIX_CPPFLAGS = @PMIX_CPPFLAGS@
 PMIX_LDFLAGS = @PMIX_LDFLAGS@
 PMIX_LIBS = @PMIX_LIBS@
@@ -475,7 +476,7 @@ AUTOMAKE_OPTIONS = foreign
 AM_CPPFLAGS = -I$(top_srcdir) $(BG_INCLUDES)
 sbcast_LDADD = $(top_builddir)/src/api/libslurm.o $(DL_LIBS) -lm
 noinst_HEADERS = sbcast.h
-sbcast_SOURCES = agent.c sbcast.c opts.c
+sbcast_SOURCES = sbcast.c opts.c
 sbcast_LDFLAGS = -export-dynamic $(CMD_LDFLAGS)
 all: all-am
 
@@ -570,7 +571,6 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/agent.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opts.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sbcast.Po@am__quote@
 

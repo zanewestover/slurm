@@ -1,6 +1,5 @@
 /*****************************************************************************\
  *  src/common/stepd_api.c - slurmstepd message API
- *  $Id$
  *****************************************************************************
  *  Copyright (C) 2005-2007 The Regents of the University of California.
  *  Copyright (C) 2008-2010 Lawrence Livermore National Security.
@@ -73,6 +72,7 @@
 strong_alias(stepd_available, slurm_stepd_available);
 strong_alias(stepd_connect, slurm_stepd_connect);
 strong_alias(stepd_get_uid, slurm_stepd_get_uid);
+strong_alias(stepd_add_extern_pid, slurm_stepd_add_extern_pid);
 
 static bool
 _slurm_authorized_user()
@@ -93,7 +93,7 @@ _slurm_authorized_user()
  * Should be called when a connect() to a socket returns ECONNREFUSED.
  * Presumably the ECONNREFUSED means that nothing is attached to the listening
  * side of the unix domain socket.
- * If the socket is at least five minutes old, go ahead an unlink it.
+ * If the socket is at least 10 minutes old, then unlink it.
  */
 static void
 _handle_stray_socket(const char *socket_name)
@@ -120,7 +120,7 @@ _handle_stray_socket(const char *socket_name)
 	}
 
 	now = time(NULL);
-	if ((now - buf.st_mtime) > 300) {
+	if ((now - buf.st_mtime) > 600) {
 		/* remove the socket */
 		if (unlink(socket_name) == -1) {
 			if (errno != ENOENT) {
@@ -165,14 +165,15 @@ _step_connect(const char *directory, const char *nodename,
 	xstrfmtcat(name, "%s/%s_%u.%u", directory, nodename, jobid, stepid);
 
 	strcpy(addr.sun_path, name);
-	len = strlen(addr.sun_path)+1 + sizeof(addr.sun_family);
+	len = strlen(addr.sun_path) + 1 + sizeof(addr.sun_family);
 
 	if (connect(fd, (struct sockaddr *) &addr, len) < 0) {
-		error("%s: connect() failed dir %s node %s job %u step %u %m",
+		/* Can indicate race condition at step termination */
+		debug("%s: connect() failed dir %s node %s step %u.%u %m",
 		      __func__, directory, nodename, jobid, stepid);
 		if (errno == ECONNREFUSED) {
 			_handle_stray_socket(name);
-			if (stepid == NO_VAL)
+			if (stepid == SLURM_BATCH_SCRIPT)
 				_handle_stray_script(directory, jobid);
 		}
 		xfree(name);
@@ -186,7 +187,7 @@ _step_connect(const char *directory, const char *nodename,
 
 
 static char *
-_guess_nodename()
+_guess_nodename(void)
 {
 	char host[256];
 	char *nodename = NULL;
@@ -725,6 +726,27 @@ stepd_pid_in_container(int fd, uint16_t protocol_version, pid_t pid)
 	return rc;
 rwfail:
 	return false;
+}
+
+/*
+ * Add a pid to the "extern" step of a job, meaning add it to the
+ * jobacct_gather and proctrack plugins.
+ */
+extern int stepd_add_extern_pid(int fd, uint16_t protocol_version, pid_t pid)
+{
+	int req = REQUEST_ADD_EXTERN_PID;
+	int rc;
+
+	safe_write(fd, &req, sizeof(int));
+	safe_write(fd, &pid, sizeof(pid_t));
+
+	/* Receive the return code */
+	safe_read(fd, &rc, sizeof(int));
+
+	debug("Leaving stepd_add_extern_pid");
+	return rc;
+rwfail:
+	return SLURM_ERROR;
 }
 
 /*

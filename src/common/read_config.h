@@ -75,7 +75,7 @@ extern char *default_plugstack;
 #define DEFAULT_FAST_SCHEDULE       1
 #define DEFAULT_FIRST_JOB_ID        1
 #define DEFAULT_GET_ENV_TIMEOUT     2
-#define DEFAULT_GROUP_INFO          600
+#define DEFAULT_GROUP_INFO          (GROUP_FORCE | 600)
 /* NOTE: DEFAULT_INACTIVE_LIMIT must be 0 for Blue Gene/L systems */
 #define DEFAULT_INACTIVE_LIMIT      0
 #define DEFAULT_JOB_ACCT_GATHER_TYPE  "jobacct_gather/none"
@@ -120,11 +120,11 @@ extern char *default_plugstack;
 #define DEFAULT_MAX_JOB_COUNT       10000
 #define DEFAULT_MAX_JOB_ID          0x7fff0000
 #define DEFAULT_MAX_STEP_COUNT      40000
+#define DEFAULT_MCS_PLUGIN          "mcs/none"
 #define DEFAULT_MEM_PER_CPU         0
 #define DEFAULT_MAX_MEM_PER_CPU     0
 #define DEFAULT_MIN_JOB_AGE         300
 #define DEFAULT_MPI_DEFAULT         "none"
-#define DEFAULT_MSG_AGGREGATION_PARAMS "WindowMsgs=1,WindowTime=100"
 #define DEFAULT_MSG_AGGR_WINDOW_MSGS 1
 #define DEFAULT_MSG_AGGR_WINDOW_TIME 100
 #define DEFAULT_MSG_TIMEOUT         10
@@ -576,5 +576,13 @@ extern char *get_extra_conf_path(char *conf_name);
  * returns true if slurm_prog_name (set in log.c) is in list, false otherwise.
  */
 extern bool run_in_daemon(char *daemons);
+
+/* Expand a feature of "knl" to all appropriate KNL options
+ * features IN/OUT - Expand string as appropriate, must be xmalloc'ed */
+extern void add_knl_features(char **features);
+
+/* Translate a job constraint specification into a node feature specification
+ * RET - String MUST be xfreed */
+extern char *xlate_features(char *job_features);
 
 #endif /* !_READ_CONFIG_H */

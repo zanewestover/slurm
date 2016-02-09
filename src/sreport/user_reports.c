@@ -81,6 +81,9 @@ static int _set_cond(int *start, int argc, char *argv[],
 
 	if (!assoc_cond->cluster_list)
 		assoc_cond->cluster_list = list_create(slurm_destroy_char);
+	if (cluster_flag)
+		slurm_addto_char_list(assoc_cond->cluster_list, cluster_flag);
+
 	for (i = (*start); i < argc; i++) {
 		end = parse_option_end(argv[i]);
 		if (!end)
@@ -145,6 +148,7 @@ static int _set_cond(int *start, int argc, char *argv[],
 	(*start) = i;
 
 	if (!local_cluster_flag && !list_count(assoc_cond->cluster_list)) {
+		/* Get the default Cluster since no cluster is specified */
 		char *temp = slurm_get_cluster_name();
 		if (temp)
 			list_append(assoc_cond->cluster_list, temp);
@@ -271,23 +275,10 @@ static void _user_top_tres_report(slurmdb_tres_rec_t *tres,
 	uint32_t tres_energy;
 	uint64_t cluster_energy_cnt = 0, user_energy_cnt = 0;
 
-	if (!(cluster_tres_rec = list_find_first(
-				slurmdb_report_cluster->tres_list,
-				slurmdb_find_tres_in_list,
-				&tres->id))) {
-		info("error, no %s(%d) TRES!", tres->type, tres->id);
-		return;
-	}
-	if (!(tres_rec = list_find_first(slurmdb_report_user->tres_list,
-				slurmdb_find_tres_in_list,
-				&tres->id))) {
-		info("error, no %s(%d) TRES!", tres->type, tres->id);
-		return;
-	}
-	if (!tres_rec->alloc_secs) {
-		debug2("error, no %s(%d) TRES usage", tres->type, tres->id);
-		return;
-	}
+	sreport_set_tres_recs(&cluster_tres_rec, &tres_rec,
+			      slurmdb_report_cluster->tres_list,
+			      slurmdb_report_user->tres_list,
+			      tres);
 
 	field_count = list_count(print_fields_list);
 	iter = list_iterator_create(print_fields_list);
@@ -328,8 +319,11 @@ static void _user_top_tres_report(slurmdb_tres_rec_t *tres,
 			tmp_char = NULL;	/* Not xmalloced */
 			break;
 		case PRINT_USER_USED:
-			field->print_routine(field, tres_rec->alloc_secs,
-					     cluster_tres_rec->alloc_secs,
+			field->print_routine(field,
+					     tres_rec ?
+					     tres_rec->alloc_secs : 0,
+					     cluster_tres_rec ?
+					     cluster_tres_rec->alloc_secs : 0,
 					     (curr_inx == field_count));
 			break;
 		case PRINT_USER_ENERGY:

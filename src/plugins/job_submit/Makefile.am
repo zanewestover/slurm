@@ -2,9 +2,9 @@
 
 SUBDIRS = \
 	all_partitions \
-	cnode \
 	cray \
 	defaults \
+	knl \
 	logging \
 	lua \
 	partition \

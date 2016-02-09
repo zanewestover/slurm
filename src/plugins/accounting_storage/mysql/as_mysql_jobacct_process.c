@@ -330,6 +330,7 @@ static void _state_time_string(char **extra, char *cluster_name, uint32_t state,
 	case JOB_TIMEOUT:
 	case JOB_NODE_FAIL:
 	case JOB_PREEMPTED:
+	case JOB_DEADLINE:
 	default:
 		xstrfmtcat(*extra, "(t1.state='%u' && (t1.time_end && ", state);
 		if (start) {
@@ -458,7 +459,15 @@ static int _cluster_get_jobs(mysql_conn_t *mysql_conn,
 			       "left join \"%s_%s\" as t2 "
 			       "on t1.id_assoc=t2.id_assoc "
 			       "left join \"%s_%s\" as t3 "
-			       " on t1.id_resv=t3.id_resv ",
+			       "on t1.id_resv=t3.id_resv && "
+			       "((t1.time_start && "
+			       "(t3.time_start < t1.time_start && "
+			       "(t3.time_end >= t1.time_start || "
+			       "t3.time_end = 0))) || "
+			       "((t3.time_start < t1.time_submit && "
+			       "(t3.time_end >= t1.time_submit || "
+			       "t3.time_end = 0)) || "
+			       "(t3.time_start > t1.time_submit)))",
 			       job_fields, cluster_name, job_table,
 			       cluster_name, assoc_table,
 			       cluster_name, resv_table);
@@ -1465,7 +1474,8 @@ extern int setup_job_cond_limits(slurmdb_job_cond_t *job_cond,
 					   job_cond->usage_start);
 			else
 				xstrfmtcat(*extra,
-					   "(t1.time_eligible < %ld "
+					   "(t1.time_eligible "
+					   "&& t1.time_eligible < %ld "
 					   "&& (t1.time_end >= %ld "
 					   "|| t1.time_end = 0)))",
 					   job_cond->usage_end,
@@ -1476,7 +1486,8 @@ extern int setup_job_cond_limits(slurmdb_job_cond_t *job_cond,
 			else
 				xstrcat(*extra, " where (");
 			xstrfmtcat(*extra,
-				   "(t1.time_eligible < %ld))",
+				   "(t1.time_eligible && "
+				   "t1.time_eligible < %ld))",
 				   job_cond->usage_end);
 		}
 	}

@@ -179,6 +179,8 @@
 #define LONG_OPT_PRIORITY        0x160
 #define LONG_OPT_POWER           0x162
 #define LONG_OPT_THREAD_SPEC     0x163
+#define LONG_OPT_MCS_LABEL       0x165
+#define LONG_OPT_DEADLINE        0x166
 
 
 /*---- global variables, defined in opt.h ----*/
@@ -381,8 +383,9 @@ static void _opt_default()
 	opt.wckey           = NULL;
 	opt.req_switch      = -1;
 	opt.wait4switch     = -1;
+	opt.mcs_label	    = NULL;
 
-	opt.nice = 0;
+	opt.nice = NO_VAL;
 	opt.priority = 0;
 }
 
@@ -555,9 +558,11 @@ _process_env_var(env_vars_t *e, const char *val)
 		break;
 	case OPT_EXCLUSIVE:
 		if (val[0] == '\0') {
-			opt.shared = 0;
+			opt.shared = JOB_SHARED_NONE;
 		} else if (!strcasecmp(val, "user")) {
-			opt.shared = 2;
+			opt.shared = JOB_SHARED_USER;
+		} else if (!strcasecmp(val, "mcs")) {
+			opt.shared = JOB_SHARED_MCS;
 		} else {
 			error("\"%s=%s\" -- invalid value, ignoring...",
 			      e->var, val);
@@ -679,6 +684,7 @@ void set_options(const int argc, char **argv)
 		{"contiguous",    no_argument,       0, LONG_OPT_CONT},
 		{"cores-per-socket", required_argument, 0, LONG_OPT_CORESPERSOCKET},
 		{"cpu-freq",         required_argument, 0, LONG_OPT_CPU_FREQ},
+		{"deadline",      required_argument, 0, LONG_OPT_DEADLINE},
 		{"exclusive",     optional_argument, 0, LONG_OPT_EXCLUSIVE},
 		{"get-user-env",  optional_argument, 0, LONG_OPT_GET_USER_ENV},
 		{"gid",           required_argument, 0, LONG_OPT_GID},
@@ -689,6 +695,7 @@ void set_options(const int argc, char **argv)
 		{"linux-image",   required_argument, 0, LONG_OPT_LINUX_IMAGE},
 		{"mail-type",     required_argument, 0, LONG_OPT_MAIL_TYPE},
 		{"mail-user",     required_argument, 0, LONG_OPT_MAIL_USER},
+		{"mcs-label",     required_argument, 0, LONG_OPT_MCS_LABEL},
 		{"mem",           required_argument, 0, LONG_OPT_MEM},
 		{"mem-per-cpu",   required_argument, 0, LONG_OPT_MEM_PER_CPU},
 		{"mem_bind",      required_argument, 0, LONG_OPT_MEM_BIND},
@@ -922,11 +929,21 @@ void set_options(const int argc, char **argv)
 		case LONG_OPT_CONT:
 			opt.contiguous = true;
 			break;
+		case LONG_OPT_DEADLINE:
+			opt.deadline = parse_time(optarg, 0);
+			if (errno == ESLURM_INVALID_TIME_VALUE) {
+				error("Invalid deadline specification %s",
+				       optarg);
+				exit(error_exit);
+			}
+			break;
                 case LONG_OPT_EXCLUSIVE:
 			if (optarg == NULL) {
-				opt.shared = 0;
+				opt.shared = JOB_SHARED_NONE;
 			} else if (!strcasecmp(optarg, "user")) {
-				opt.shared = 2;
+				opt.shared = JOB_SHARED_USER;
+			} else if (!strcasecmp(optarg, "mcs")) {
+				opt.shared = JOB_SHARED_MCS;
 			} else {
 				error("invalid exclusive option %s", optarg);
 				exit(error_exit);
@@ -1035,16 +1052,16 @@ void set_options(const int argc, char **argv)
 			xfree(opt.mail_user);
 			opt.mail_user = xstrdup(optarg);
 			break;
+		case LONG_OPT_MCS_LABEL: {
+			xfree(opt.mcs_label);
+			opt.mcs_label = xstrdup(optarg);
+			break;
+		}
 		case LONG_OPT_NICE:
 			if (optarg)
 				opt.nice = strtol(optarg, NULL, 10);
 			else
 				opt.nice = 100;
-			if (abs(opt.nice) > NICE_OFFSET) {
-				error("Invalid nice value, must be between "
-				       "-%d and %d", NICE_OFFSET, NICE_OFFSET);
-				exit(error_exit);
-			}
 			if (opt.nice < 0) {
 				uid_t my_uid = getuid();
 				if ((my_uid != 0) &&
@@ -1361,6 +1378,49 @@ static bool _opt_verify(void)
 		verified = false;
 	}
 
+	if (!opt.nodelist) {
+		if ((opt.nodelist = xstrdup(getenv("SLURM_HOSTFILE")))) {
+			/* make sure the file being read in has a / in
+			   it to make sure it is a file in the
+			   valid_node_list function */
+			if (!strstr(opt.nodelist, "/")) {
+				char *add_slash = xstrdup("./");
+				xstrcat(add_slash, opt.nodelist);
+				xfree(opt.nodelist);
+				opt.nodelist = add_slash;
+			}
+			opt.distribution &= SLURM_DIST_STATE_FLAGS;
+			opt.distribution |= SLURM_DIST_ARBITRARY;
+			if (!_valid_node_list(&opt.nodelist)) {
+				error("Failure getting NodeNames from "
+				      "hostfile");
+				exit(error_exit);
+			} else {
+				debug("loaded nodes (%s) from hostfile",
+				      opt.nodelist);
+			}
+		}
+	} else {
+		if (!_valid_node_list(&opt.nodelist))
+			exit(error_exit);
+	}
+
+	if (opt.nodelist) {
+		int hl_cnt;
+		hostlist_t hl = hostlist_create(opt.nodelist);
+		if (!hl) {
+			error("memory allocation failure");
+			exit(error_exit);
+		}
+		hostlist_uniq(hl);
+		hl_cnt = hostlist_count(hl);
+		if (opt.nodes_set)
+			opt.min_nodes = MAX(hl_cnt, opt.min_nodes);
+		else
+			opt.min_nodes = hl_cnt;
+	}
+
+
 	if (cluster_flags & CLUSTER_FLAG_BGQ)
 		bg_figure_nodes_tasks(&opt.min_nodes, &opt.max_nodes,
 				      &opt.ntasks_per_node, &opt.ntasks_set,
@@ -1545,33 +1605,6 @@ static bool _opt_verify(void)
 
 	} /* else if (opt.ntasks_set && !opt.nodes_set) */
 
-	if (!opt.nodelist) {
-		if ((opt.nodelist = xstrdup(getenv("SLURM_HOSTFILE")))) {
-			/* make sure the file being read in has a / in
-			   it to make sure it is a file in the
-			   valid_node_list function */
-			if (!strstr(opt.nodelist, "/")) {
-				char *add_slash = xstrdup("./");
-				xstrcat(add_slash, opt.nodelist);
-				xfree(opt.nodelist);
-				opt.nodelist = add_slash;
-			}
-			opt.distribution &= SLURM_DIST_STATE_FLAGS;
-			opt.distribution |= SLURM_DIST_ARBITRARY;
-			if (!_valid_node_list(&opt.nodelist)) {
-				error("Failure getting NodeNames from "
-				      "hostfile");
-				exit(error_exit);
-			} else {
-				debug("loaded nodes (%s) from hostfile",
-				      opt.nodelist);
-			}
-		}
-	} else {
-		if (!_valid_node_list(&opt.nodelist))
-			exit(error_exit);
-	}
-
 	/* set up the proc and node counts based on the arbitrary list
 	   of nodes */
 	if (((opt.distribution & SLURM_DIST_STATE_BASE) == SLURM_DIST_ARBITRARY)
@@ -1606,6 +1639,10 @@ static bool _opt_verify(void)
 		}
 		if (opt.time_min == 0)
 			opt.time_min = INFINITE;
+	}
+	if ((opt.deadline) && (opt.begin) && (opt.deadline < opt.begin)) {
+		error("Incompatible begin and deadline time specification");
+		exit(error_exit);
 	}
 
 #ifdef HAVE_AIX
@@ -1900,6 +1937,11 @@ static void _opt_list(void)
 		slurm_make_time_str(&opt.begin, time_str, sizeof(time_str));
 		info("begin          : %s", time_str);
 	}
+	if (opt.deadline) {
+		char time_str[32];
+		slurm_make_time_str(&opt.deadline, time_str, sizeof(time_str));
+		info("deadline       : %s", time_str);
+	}
 	info("mail_type      : %s", print_mail_type(opt.mail_type));
 	info("mail_user      : %s", opt.mail_user);
 	info("sockets-per-node  : %d", opt.sockets_per_node);
@@ -1926,6 +1968,8 @@ static void _opt_list(void)
 	} else
 		info("core-spec         : %d", opt.core_spec);
 	info("burst_buffer      : `%s'", opt.burst_buffer);
+	if (opt.mcs_label)
+		info("mcs-label         : %s",opt.mcs_label);
 	xfree(str);
 
 }
@@ -1955,11 +1999,11 @@ static void _usage(void)
 "              [--mloader-image=path] [--ioload-image=path]\n"
 #endif
 #endif
-"              [--mail-type=type] [--mail-user=user][--nice[=value]]\n"
+"              [--mail-type=type] [--mail-user=user] [--nice[=value]]\n"
 "              [--bell] [--no-bell] [--kill-command[=signal]]\n"
 "              [--nodefile=file] [--nodelist=hosts] [--exclude=hosts]\n"
 "              [--network=type] [--mem-per-cpu=MB] [--qos=qos]\n"
-"              [--mem_bind=...] [--reservation=name]\n"
+"              [--mem_bind=...] [--reservation=name] [--mcs-label=mcs]\n"
 "              [--time-min=minutes] [--gres=list] [--profile=...]\n"
 "              [--cpu-freq=min[-max[:gov]] [--power=flags]\n"
 "              [--switches=max-switches[@max-time-to-wait]]\n"
@@ -1985,6 +2029,8 @@ static void _help(void)
 "      --comment=name          arbitrary comment\n"
 "      --cpu-freq=min[-max[:gov]] requested cpu frequency (and governor)\n"
 "  -d, --dependency=type:jobid defer job until condition on jobid is satisfied\n"
+"      --deadline=time         remove the job if no ending possible before\n"
+"                              this deadline (start > (deadline - time[-min]))\n"
 "  -D, --chdir=path            change working directory\n"
 "      --get-user-env          used by Moab.  See srun man page.\n"
 "      --gid=group_id          group ID to run job as (user root only)\n"
@@ -2001,6 +2047,7 @@ static void _help(void)
 "      --mail-type=type        notify on state change: BEGIN, END, FAIL or ALL\n"
 "      --mail-user=user        who to send email notification for job state\n"
 "                              changes\n"
+"      --mcs-label=mcs         mcs label if mcs plugin mcs/group is used\n"
 "  -n, --tasks=N               number of processors required\n"
 "      --nice[=value]          decrease scheduling priority by value\n"
 "      --no-bell               do NOT ring the terminal bell\n"
@@ -2043,6 +2090,9 @@ static void _help(void)
 "Consumable resources related options:\n"
 "      --exclusive[=user]      allocate nodes in exclusive mode when\n"
 "                              cpu consumable resource is enabled\n"
+"      --exclusive[=mcs]       allocate nodes in exclusive mode when\n"
+"                              cpu consumable resource is enabled\n"
+"                              and mcs plugin is enabled\n"
 "      --mem-per-cpu=MB        maximum amount of real memory per allocated\n"
 "                              cpu required by the job.\n"
 "                              --mem >= --mem-per-cpu if --mem is specified.\n"

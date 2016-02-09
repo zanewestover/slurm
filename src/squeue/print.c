@@ -178,6 +178,25 @@ int print_steps_array(job_step_info_t * steps, int size, List format)
 	return SLURM_SUCCESS;
 }
 
+/* Combine a job array's task "reason" into the master job array record
+ * reason as needed */
+static void _merge_job_reason(job_info_t *job_ptr, job_info_t *task_ptr)
+{
+	char *task_desc;
+
+	if (job_ptr->state_reason == task_ptr->state_reason)
+		return;
+
+	if (!job_ptr->state_desc) {
+		job_ptr->state_desc =
+			xstrdup(job_reason_string(job_ptr->state_reason));
+	}
+	task_desc = job_reason_string(task_ptr->state_reason);
+	if (strstr(job_ptr->state_desc, task_desc))
+		return;
+	xstrfmtcat(job_ptr->state_desc, ",%s", task_desc);
+}
+
 /* Combine pending tasks of a job array into a single record.
  * The tasks may have been split into separate job records because they were
  * modified or started, but the records can be re-combined if pending. */
@@ -218,6 +237,8 @@ static void _combine_pending_array_tasks(List job_list)
 				continue;	/* Different partition */
 			/* Combine this task into master job array record */
 			update_cnt++;
+			_merge_job_reason(job_rec_ptr->job_ptr,
+					  task_rec_ptr->job_ptr);
 			bit_set(task_bitmap,
 				task_rec_ptr->job_ptr->array_task_id);
 			list_delete_item(task_iterator);
@@ -855,7 +876,16 @@ int _print_job_time_start(job_info_t * job, int width, bool right,
 		printf("%s", suffix);
 	return SLURM_SUCCESS;
 }
-
+int _print_job_deadline(job_info_t * job, int width, bool right, char* suffix)
+{
+	if (job == NULL)        /* Print the Header instead */
+		_print_str("DEADLINE", width, right, true);
+	else
+		_print_time(job->deadline, 0, width, right);
+	if (suffix)
+		printf("%s", suffix);
+	return SLURM_SUCCESS;
+}
 int _print_job_time_end(job_info_t * job, int width, bool right, char* suffix)
 {
 	if (job == NULL)	/* Print the Header instead */
@@ -958,6 +988,7 @@ int _print_job_reason_list(job_info_t * job, int width, bool right,
 	} else if (!IS_JOB_COMPLETING(job)
 		   && (IS_JOB_PENDING(job)
 		       || IS_JOB_TIMEOUT(job)
+		       || IS_JOB_DEADLINE(job)
 		       || IS_JOB_FAILED(job))) {
 		char *reason_fmt = NULL, *reason = NULL;
 		if (job->state_desc)
@@ -1065,7 +1096,7 @@ int _print_job_num_sct(job_info_t * job, int width, bool right_justify,
 	char sockets[10];
 	char cores[10];
 	char threads[10];
-	char sct[(10+1)*3];
+	char *sct = NULL;
 	if (job) {
 		if (job->sockets_per_node == (uint16_t) NO_VAL)
 			strcpy(sockets, "*");
@@ -1085,13 +1116,9 @@ int _print_job_num_sct(job_info_t * job, int width, bool right_justify,
 			convert_num_unit((float)job->threads_per_core, threads,
 					sizeof(threads), UNIT_NONE,
 					params.convert_flags);
-		sct[0] = '\0';
-		strcat(sct, sockets);
-		strcat(sct, ":");
-		strcat(sct, cores);
-		strcat(sct, ":");
-		strcat(sct, threads);
+		xstrfmtcat(sct, "%s:%s:%s", sockets, cores, threads);
 		_print_str(sct, width, right_justify, true);
+		xfree(sct);
 	} else {
 		_print_str("S:C:T", width, right_justify, true);
 	}
@@ -1241,18 +1268,15 @@ int _print_pn_min_memory(job_info_t * job, int width, bool right_justify,
 			  char* suffix)
 {
 	char min_mem[10];
-	char tmp_char[21];
 
 	if (job == NULL)	/* Print the Header instead */
 		_print_str("MIN_MEMORY", width, right_justify, true);
 	else {
-	    	tmp_char[0] = '\0';
 		job->pn_min_memory &= (~MEM_PER_CPU);
 		convert_num_unit((float)job->pn_min_memory, min_mem,
 				 sizeof(min_mem), UNIT_MEGA,
 				 params.convert_flags);
-		strcat(tmp_char, min_mem);
-		_print_str(tmp_char, width, right_justify, true);
+		_print_str(min_mem, width, right_justify, true);
 	}
 
 	if (suffix)
@@ -1922,6 +1946,9 @@ int _print_job_tres(job_info_t *job, int width,
 		if (job->tres_alloc_str)
 			_print_str(job->tres_alloc_str, width,
 				   right_justify, true);
+		else if (job->tres_req_str)
+			_print_str(job->tres_req_str, width,
+				   right_justify, true);
 		else
 			_print_str("N/A", width,
 				   right_justify, true);
@@ -1930,6 +1957,18 @@ int _print_job_tres(job_info_t *job, int width,
 	return SLURM_SUCCESS;
 }
 
+int _print_job_mcs_label(job_info_t * job, int width,
+			bool right, char* suffix)
+{
+	if (job == NULL)
+		_print_str("MCSLABEL", width, right, true);
+	else
+		_print_str(job->mcs_label, width, right, true);
+
+	if (suffix)
+		printf("%s", suffix);
+	return SLURM_SUCCESS;
+}
 
 /*****************************************************************************
  * Job Step Print Functions

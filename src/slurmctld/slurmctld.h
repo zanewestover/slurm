@@ -284,7 +284,7 @@ typedef struct front_end_record {
 	uid_t *deny_uids;		/* zero terminated list of denied users */
 	char *deny_users;		/* denied user string */
 	uint32_t job_cnt_comp;		/* count of completing jobs on node */
-	uint16_t job_cnt_run;		/* count of running jobs on node */
+	uint16_t job_cnt_run;		/* count of running or suspended jobs */
 	time_t last_response;		/* Time of last communication */
 	uint32_t magic;			/* magic cookie to test data integrity */
 	char *name;			/* frontend node name */
@@ -449,11 +449,11 @@ extern time_t last_job_update;	/* time of last update to job records */
 #define FEATURE_OP_XOR  2
 #define FEATURE_OP_XAND 3
 #define FEATURE_OP_END  4		/* last entry lacks separator */
-struct feature_record {
+typedef struct job_feature {
 	char *name;			/* name of feature */
 	uint16_t count;			/* count of nodes with this feature */
 	uint8_t op_code;		/* separator, see FEATURE_OP_ above */
-};
+} job_feature_t;
 
 /* job_details - specification of a job's constraints,
  * can be purged after initiation */
@@ -502,7 +502,7 @@ struct job_details {
 	uint16_t mem_bind_type;		/* see mem_bind_type_t */
 	uint32_t min_cpus;		/* minimum number of cpus */
 	uint32_t min_nodes;		/* minimum number of nodes */
-	uint16_t nice;			/* requested priority change,
+	uint32_t nice;			/* requested priority change,
 					 * NICE_OFFSET == no change */
 	uint16_t ntasks_per_node;	/* number of tasks on each node */
 	uint32_t num_tasks;		/* number of tasks to start */
@@ -539,7 +539,8 @@ struct job_details {
 					 * is enabled */
 	uint32_t usable_nodes;		/* node count needed by preemption */
 	uint8_t whole_node;		/* 1: --exclusive
-					 * 2: --exclusive=user */
+					 * 2: --exclusive=user
+					 * 3: --exclusive=mcs */
 	char *work_dir;			/* pathname of working directory */
 };
 
@@ -610,6 +611,7 @@ struct job_record {
 					 * bluegene and the linear plugins
 					 * 0 if cr is NOT enabled,
 					 * 1 if cr is enabled */
+	time_t deadline;		/* deadline */
 	uint32_t db_index;              /* used only for database
 					 * plugins */
 	uint32_t derived_ec;		/* highest exit code of all job steps */
@@ -654,6 +656,7 @@ struct job_record {
 	uint16_t mail_type;		/* see MAIL_JOB_* in slurm.h */
 	char *mail_user;		/* user to get e-mail notification */
 	uint32_t magic;			/* magic cookie for data integrity */
+	char *mcs_label;		/* mcs_label if mcs plugin in use */
 	char *name;			/* name of the job */
 	char *network;			/* network/switch requirement spec */
 	uint32_t next_step_id;		/* next step id to be used */
@@ -1430,14 +1433,16 @@ extern bool job_independent(struct job_record *job_ptr, int will_run);
 
 /*
  * job_req_node_filter - job reqeust node filter.
- * clear from a bitmap the nodes which can not be used for a job
- * test memory size, required features, processor count, etc.
+ *	clear from a bitmap the nodes which can not be used for a job
+ *	test memory size, required features, processor count, etc.
+ * NOTE: Does not support exclusive OR of features.
+ *	It just matches first element of XOR and ignores count.
  * IN job_ptr - pointer to node to be scheduled
  * IN/OUT bitmap - set of nodes being considered for use
  * RET SLURM_SUCCESS or EINVAL if can't filter (exclusive OR of features)
  */
 extern int job_req_node_filter(struct job_record *job_ptr,
-			       bitstr_t *avail_bitmap);
+			       bitstr_t *avail_bitmap, bool test_only);
 
 /*
  * job_requeue - Requeue a running or pending batch job
@@ -1465,6 +1470,20 @@ extern int job_requeue(uid_t uid, uint32_t job_id,
 extern int job_requeue2(uid_t uid, requeue_msg_t *req_ptr,
                        slurm_fd_t conn_fd, uint16_t protocol_version,
                        bool preempt);
+
+/*
+ * job_set_top - Move the specified job to the top of the queue (at least
+ *	for that user ID, partition, account, and QOS).
+ *
+ * IN top_ptr - user request
+ * IN uid - user id of the user issuing the RPC
+ * IN conn_fd - file descriptor on which to send reply,
+ *              -1 if none
+ * IN protocol_version - slurm protocol version of client
+ * RET 0 on success, otherwise ESLURM error code
+ */
+extern int job_set_top(top_job_msg_t *top_ptr, uid_t uid, slurm_fd_t conn_fd,
+		       uint16_t protocol_version);
 
 /*
  * job_step_complete - note normal completion the specified job step
@@ -2097,12 +2116,6 @@ extern slurm_step_layout_t *step_layout_create(struct step_record *step_ptr,
  * IN job_ptr - pointer to job table entry to have step records removed
  */
 extern void step_list_purge(struct job_record *job_ptr);
-
-/* start_power_mgr - Start power management thread as needed. The thread
- *	terminates automatically at slurmctld shutdown time.
- * IN thread_id - pointer to thread ID of the started pthread.
- */
-extern void start_power_mgr(pthread_t *thread_id);
 
 /*
  * step_epilog_complete - note completion of epilog on some node and

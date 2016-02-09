@@ -1,6 +1,5 @@
 /*****************************************************************************\
  *  allocate.c - allocate nodes for a job or step with supplied contraints
- *  $Id$
  *****************************************************************************
  *  Copyright (C) 2002-2007 The Regents of the University of California.
  *  Copyright (C) 2008-2009 Lawrence Livermore National Security.
@@ -774,8 +773,8 @@ _handle_msg(slurm_msg_t *msg, resource_allocation_response_msg_t **resp)
 			info("Job has been cancelled");
 			break;
 		default:
-			error("received spurious message type: %d",
-			      msg->msg_type);
+			error("%s: received spurious message type: %u",
+			      __func__, msg->msg_type);
 	}
 	return rc;
 }

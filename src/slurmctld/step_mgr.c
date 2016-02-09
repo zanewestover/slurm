@@ -64,6 +64,7 @@
 #include "src/common/node_select.h"
 #include "src/common/slurm_accounting_storage.h"
 #include "src/common/slurm_jobacct_gather.h"
+#include "src/common/slurm_mcs.h"
 #include "src/common/slurm_protocol_interface.h"
 #include "src/common/switch.h"
 #include "src/common/xstring.h"
@@ -933,9 +934,10 @@ _pick_step_nodes (struct job_record  *job_ptr,
 	bit_and (nodes_avail, up_node_bitmap);
 	if (step_spec->features) {
 		/* We only select for a single feature name here.
-		 * Add support for AND, OR, etc. here if desired */
-		struct features_record *feat_ptr;
-		feat_ptr = list_find_first(feature_list, list_find_feature,
+		 * FIXME: Add support for AND, OR, etc. here if desired */
+		node_feature_t *feat_ptr;
+		feat_ptr = list_find_first(active_feature_list,
+					   list_find_feature,
 					   (void *) step_spec->features);
 		if (feat_ptr && feat_ptr->node_bitmap)
 			bit_and(nodes_avail, feat_ptr->node_bitmap);
@@ -2629,8 +2631,10 @@ extern slurm_step_layout_t *step_layout_create(struct step_record *step_ptr,
 			if ((job_resrcs_ptr->whole_node != 1)
 			    && (slurmctld_conf.select_type_param
 				& (CR_CORE | CR_SOCKET))
-			    && (job_ptr->details->cpu_bind_type
-				& CPU_BIND_ONE_THREAD_PER_CORE)) {
+			    && ((job_ptr->details->cpu_bind_type !=
+				 (uint16_t)NO_VAL)
+				&& (job_ptr->details->cpu_bind_type
+				    & CPU_BIND_ONE_THREAD_PER_CORE))) {
 				uint16_t threads;
 				if (slurmctld_conf.fast_schedule)
 					threads = node_ptr->config_ptr->threads;
@@ -2929,8 +2933,11 @@ extern int pack_ctld_job_step_info_response_msg(
 
 		if ((slurmctld_conf.private_data & PRIVATE_DATA_JOBS) &&
 		    (job_ptr->user_id != uid) && !validate_operator(uid) &&
-		    !assoc_mgr_is_user_acct_coord(acct_db_conn, uid,
-						  job_ptr->account))
+		    (((slurm_mcs_get_privatedata() == 0) &&
+		      !assoc_mgr_is_user_acct_coord(acct_db_conn, uid,
+						    job_ptr->account)) ||
+		     ((slurm_mcs_get_privatedata() == 1) &&
+		      (mcs_g_check_mcs_label(uid, job_ptr->mcs_label) != 0))))
 			continue;
 
 		step_iterator = list_iterator_create(job_ptr->step_list);
@@ -3252,6 +3259,8 @@ extern int step_partial_comp(step_complete_msg_t *req, uid_t uid,
 				bit_copy(job_ptr->node_bitmap);
 		}
 		step_ptr->time_last_active = time(NULL);
+		step_set_alloc_tres(step_ptr, 1, false, false);
+
 		jobacct_storage_g_step_start(acct_db_conn, step_ptr);
 	}
 	if (step_ptr == NULL) {
@@ -3384,6 +3393,15 @@ extern void step_set_alloc_tres(
 		if (step_ptr->job_ptr->job_resrcs->memory_allocated)
 			mem_count = step_ptr->job_ptr->job_resrcs->
 				memory_allocated[0];
+	} else if ((step_ptr->step_id == SLURM_EXTERN_CONT) &&
+	    step_ptr->job_ptr->tres_alloc_str) {
+		/* get the tres from the whole job */
+		step_ptr->tres_alloc_str =
+			xstrdup(step_ptr->job_ptr->tres_alloc_str);
+		if (make_formatted)
+			step_ptr->tres_fmt_alloc_str =
+				xstrdup(step_ptr->job_ptr->tres_fmt_alloc_str);
+		return;
 	} else {
 #ifdef HAVE_BG_L_P
 		/* Only L and P use this code */

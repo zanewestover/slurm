@@ -1,4 +1,4 @@
-.TH "slurm.conf" "5" "Slurm Configuration File" "October 2015" "Slurm Configuration File"
+.TH "slurm.conf" "5" "Slurm Configuration File" "January 2016" "Slurm Configuration File"
 
 .SH "NAME"
 slurm.conf \- Slurm configuration file
@@ -369,13 +369,6 @@ Acceptable values at present include "burst_buffer/none".
 More information later...
 
 .TP
-\fBCacheGroups\fR
-If set to 1, the slurmd daemon will cache /etc/groups entries.
-This can improve performance for highly parallel jobs if NIS servers
-are used and unable to respond very quickly.
-The default value is 0 to disable caching group data.
-
-.TP
 \fBCheckpointType\fR
 The system\-initiated checkpoint method to be used for user jobs.
 The slurmctld daemon must be restarted for a change in \fBCheckpointType\fR
@@ -616,6 +609,9 @@ in the database.
 \fBDB_WCKEY\fR
 SQL statements/queries when dealing with wckeys in the database.
 .TP
+\fBElasticsearch\fR
+Elasticsearch debug info
+.TP
 \fBEnergy\fR
 AcctGatherEnergy debug info
 .TP
@@ -633,6 +629,9 @@ Gang scheduling details
 .TP
 \fBJobContainer\fR
 Job container plugin details
+.TP
+\fBKNL\fR
+Intel Knights Landking (KNL) debug info
 .TP
 \fBLicense\fR
 License management details
@@ -764,10 +763,13 @@ May not exceed 65533.
 
 .TP
 \fBEnforcePartLimits\fR
-If set to "YES" then jobs which exceed a partition's size and/or time limits
-will be rejected at submission time. If set to "NO" then the job will be
-accepted and remain queued until the partition limits are altered.
-The default value is "NO".
+If set to "ALL" then jobs which exceed a partition's size and/or
+time limits will be rejected at submission time. If job is submitted to
+multiple partitions, the job must satisfy the limits on all the requested
+paritions. If set to "NO" then the job will be accepted and remain queued
+until the partition limits are altered(Time and Node Limits).
+If set to "ANY" or "YES" a job must satisfy any of the requested partitions
+to be submitted. The default value is "NO".
 NOTE: If set, then a job's QOS can not be used to exceed partition limits.
 
 .TP
@@ -911,13 +913,14 @@ of groups allowed to use a partition will be updated periodically, even when
 there have been no changes to the /etc/group file.
 Otherwise group member information will be updated periodically only after the
 /etc/group file is updated
-The default value is 0.
+The default value is 1.
 Also see the \fBGroupUpdateTime\fR parameter.
 
 .TP
 \fBGroupUpdateTime\fR
-Controls how frequently information about which users are members of groups
-allowed to use a partition will be updated.
+Controls how frequently information about which users are members of
+groups allowed to use a partition will be updated, and how long user
+group membership lists will be cached.
 The time interval is given in seconds with a default value of 600 seconds and
 a maximum value of 4095 seconds.
 A value of zero will prevent periodic updating of group membership information.
@@ -1104,7 +1107,9 @@ Also see \fBDefaultStorageHost\fR.
 The fully qualified file name where job completion records are written
 when the \fBJobCompType\fR is "jobcomp/filetxt" or the database where
 job completion records are stored when the \fBJobCompType\fR is a
-database.
+database or an url with format http://yourelasticserver:port where job
+completion records are indexed when the \fBJobCompType\fR is
+"jobcomp/elasticsearch".
 Also see \fBDefaultStorageLoc\fR.
 
 .TP
@@ -1123,12 +1128,15 @@ Also see \fBDefaultStoragePort\fR.
 .TP
 \fBJobCompType\fR
 The job completion logging mechanism type.
-Acceptable values at present include "jobcomp/none", "jobcomp/filetxt",
-"jobcomp/mysql", and "jobcomp/script"".
+Acceptable values at present include "jobcomp/none", "jobcomp/elasticsearch",
+"jobcomp/filetxt", "jobcomp/mysql" and "jobcomp/script"".
 The default value is "jobcomp/none", which means that upon job completion
 the record of the job is purged from the system.  If using the accounting
 infrastructure this plugin may not be of interest since the information
 here is redundant.
+The value "jobcomp/elasticsearch" indicates that a record of the job
+should be written to an Elasticsearch server specified by the
+\fBJobCompLoc\fR parameter.
 The value "jobcomp/filetxt" indicates that a record of the job should be
 written to a text file specified by the \fBJobCompLoc\fR parameter.
 The value "jobcomp/mysql" indicates that a record of the job should be
@@ -1137,7 +1145,6 @@ parameter.
 The value "jobcomp/script" indicates that a script specified by the
 \fBJobCompLoc\fR parameter is to be executed with environment variables
 indicating the job information.
-
 .TP
 \fBJobCompUser\fR
 The user account for accessing the job completion database.
@@ -1200,7 +1207,7 @@ A comma delimited list of job submission plugins to be used.
 The specified plugins will be executed in the order listed.
 These are intended to be site\-specific plugins which can be used to set
 default job parameters and/or logging events.
-Sample plugins available in the distribution include "all_partitions", "cnode",
+Sample plugins available in the distribution include "all_partitions",
 "defaults", "logging", "lua", and "partition".
 For examples of use, see the Slurm code in "src/plugins/job_submit" and
 "contribs/lua/job_submit*.lua" then modify the code to satisfy your needs.
@@ -1235,6 +1242,18 @@ If the job fails to terminate gracefully in the interval specified,
 it will be forcibly terminated.
 The default value is 30 seconds.
 The value may not exceed 65533.
+
+.TP
+\fBKNLPlugins\fR
+Identifies the plugins to be used for support of Intel Knights Landing
+processors (KNL). These plugins can status the processor for NUMA and MCDRAM
+mode, reboot the node into different modes, etc.
+Acceptable values at present include:
+.RS
+.TP 20
+\fBknl/cray\fR
+used only for Cray systems
+.RE
 
 .TP
 \fBLaunchParameters\fR
@@ -1380,6 +1399,34 @@ The default value is 40000 steps.
 Maximum number of tasks Slurm will allow a job step to spawn
 on a single node. The default \fBMaxTasksPerNode\fR is 128.
 May not exceed 65533.
+
+.TP
+\fBMCSParameters\fR
+MCS = Multi-Category Security
+MCS Plugin Parameters.
+The supported parameters are specific to the \fBMCSPlugin\fR.
+Changes to this value take effect when the Slurm daemons are reconfigured.
+More information about MCS is available here
+<http://slurm.schedmd.com/mcs_Plugins.html>.
+
+.TP
+\fBMCSPlugin\fR
+MCS = Multi-Category Security : associate a security label to jobs and ensure
+that nodes can only be shared among jobs using the same security label.
+Acceptable values include:
+.RS
+.TP 12
+\fBmcs/none\fR
+is the default value.
+No security label associated with jobs,
+no particular security restriction when sharing nodes among jobs.
+.TP
+\fBmcs/group\fR
+only users with the same group can share the nodes.
+.TP
+\fBmcs/user\fR
+a node cannot be shared with other users.
+.RE
 
 .TP
 \fBMemLimitEnforce\fR
@@ -1619,7 +1666,7 @@ Enables gang scheduling and/or controls the mechanism used to preempt
 jobs.  When the \fBPreemptType\fR parameter is set to enable preemption, the
 \fBPreemptMode\fR selects the default mechanism used to preempt the lower
 priority jobs for the cluster. \fBPreemptMode\fR may be specified on a
-per partition basis to over ride this default value if
+per partition basis to override this default value if
 \fBPreemptType=preempt/partition_prio\fR, but a valid default \fBPreemptMode\fR
 value must be specified for the cluster as a whole when preemption is enabled.
 The \fBGANG\fR option is used to
@@ -1650,6 +1697,8 @@ not recommended.
 .TP
 \fBREQUEUE\fR
 preempts jobs by requeuing them (if possible) or canceling them.
+For jobs to be requeued they must have the \-\-requeue sbatch option set
+or the cluster wide JobRequeue parameter in slurm.conf must be set to one.
 .TP
 \fBSUSPEND\fR
 If PreemptType=preempt/partition_prio is configured then suspend and
@@ -1990,10 +2039,12 @@ Currently supported options are:
 \fBAlloc\fR
 If set, the Prolog script will be executed at job allocation. By default,
 Prolog is executed just before the task is launched. Therefore, when salloc
-is started, no Prolog is executed. \fBAlloc\fR is useful for preparing things
+is started, no Prolog is executed. Alloc is useful for preparing things
 before a user starts to use any allocated resources.
 In particular, this flag is needed on a Cray system when cluster compatibility
 mode is enabled.
+
+\fBNOTE: Use of the Alloc flag will increase the time required to start jobs.\fR
 .TP
 \fBContain\fR
 At job allocation time, use the ProcTrack plugin to create a job container
@@ -2001,6 +2052,7 @@ on all allocated compute nodes.
 This container may be used for user processes not launched under Slurm control,
 for example the PAM module may place processes launch through a direct user
 login into this container.
+Setting the Contain implicitly sets the Alloc flag.
 .TP
 \fBNoHold\fR
 If set, the Alloc flag should also be set.  This will allow for salloc to not
@@ -2075,6 +2127,11 @@ the default action is to propagate all limits.
 Only one of the parameters, either
 \fBPropagateResourceLimits\fR or \fBPropagateResourceLimitsExcept\fR,
 may be specified.
+The user limits can not exceed hard limits under which the slurmd daemon
+operates. If the user limits are not propagated, the limits from the slurmd
+daemon will be propagated to the user's job. The limits used for the Slurm
+daemons can be set in the /etc/sysconf/slurm file. For more information, see:
+http://slurm.schedmd.com/faq.html#memlock
 The following limit names are supported by Slurm (although some
 options may not be supported on some systems):
 .RS
@@ -2192,7 +2249,7 @@ in power save mode is assigned work to perform.
 For reasons of reliability, \fBResumeProgram\fR may execute more than once
 for a node when the \fBslurmctld\fR daemon crashes and is restarted.
 If \fBResumeProgram\fR is unable to restore a node to service, it should
-requeue any node associated with the node and set the node state to DRAIN.
+requeue any job associated with the node and set the node state to DRAIN.
 The program executes as \fBSlurmUser\fR.
 The argument to the program will be the names of nodes to
 be removed from power savings mode (using Slurm's hostlist
@@ -2325,7 +2382,11 @@ consume any of the CPU or memory resources, configure it as a pseudo\-terminal,
 and preserve all of the job's environment variables (i.e. and not over\-write
 them with the job step's allocation information).
 
-For Cray systems, add \-\-gres=craynetwork:0. e.g.:
+For systems with generic resources (GRES) defined, the \fBSallocDefaultCommand\fR
+value should explicitly specify a zero count for the configured GRES.
+Failure to do so will result in the launched shell consuming those GRES and
+preventing subsequent srun commands from using them.
+For example, on Cray systems add "\-\-gres=craynetwork:0" as shown below:
 .nf
     SallocDefaultCommand = "srun \-n1 \-N1 \-\-mem\-per\-cpu=0 \-\-gres=craynetwork:0 \-\-pty \-\-preserve\-env \-\-mpi=none $SHELL"
 .fi
@@ -2350,7 +2411,9 @@ nodes that are in use.
 This will tend to leave currently idle resources available for backfilling
 longer running jobs, but may result in allocations having less than optimal
 network topology.
-This option is currently only supported by the select/cons_res plugin.
+This option is currently only supported by the select/cons_res plugin
+(or select/cray with SelectTypeParameters set to "OTHER_CONS_RES",
+which layers the select/cray plugin over the select/cons_res plugin).
 .TP
 \fBbf_continue\fR
 The backfill scheduler periodically releases locks in order to permit other
@@ -2359,7 +2422,7 @@ extended period of time.
 Setting this option will cause the backfill scheduler to continue processing
 pending jobs from its original job list after releasing locks even if job
 or node state changes.
-This can result in lower priority jobs from being backfill scheduled instead
+This can result in lower priority jobs being backfill scheduled instead
 of newly arrived higher priority jobs, but will permit more queued jobs to be
 considered for backfill scheduling.
 .TP
@@ -2417,14 +2480,16 @@ The default value is 0, which means no limit.
 This option applies only to \fBSchedulerType=sched/backfill\fR.
 .TP
 \fBbf_min_age_reserve=#\fR
-The backfill scheduler will not reserve resources for pending jobs until they
-have been pending and runnable for at least the specified number of seconds.
+The backfill and main scheduling logic will not reserve resources for pending
+jobs until they have been pending and runnable for at least the specified
+number of seconds.
 In addition, jobs waiting for less than the specified number of seconds will
 not prevent a newly submitted job from starting immediately, even if the newly
 submitted job has a lower priority.
 This can be valuable if jobs lack time limits or all time limits have the same
 value.
 The default value is zero, which will reserve resources for any pending job
+and delay initiation of lower priority jobs.
 .TP
 \fBbf_resolution=#\fR
 The number of seconds in the resolution of data maintained about when jobs
@@ -2471,18 +2536,12 @@ The default value is 2,000,000 microseconds (2 seconds).
 .TP
 \fBdefault_queue_depth=#\fR
 The default number of jobs to attempt scheduling (i.e. the queue depth) when a
-running job completes or other routine actions occur. The full queue will be
-tested on a less frequent basis as defined by the \fBsched_interval\fR option
-described below. The default value is 100.
+running job completes or other routine actions occur, however the frequency
+with which the scheduler is run may be limited by using the \fBdefer\fR or
+\fBsched_min_interval\fR parameters described below.
+The full queue will be tested on a less frequent basis as defined by the
+\fBsched_interval\fR option described below. The default value is 100.
 See the \fBpartition_job_depth\fR option to limit depth by partition.
-In the case of large clusters (more than 1000 nodes), configuring a relatively
-small value may be desirable.
-Specifying a large value (say 1000 or higher) can be expected to result in
-poor system responsiveness since this scheduling logic will not release
-locks for other events to occur.
-It would be better to let the backfill scheduler process a larger number of jobs
-(see \fBbf_max_job_test\fR, \fBbf_continue\fR  and other options here for more
-information).
 .TP
 \fBdefer\fR
 Setting this option will avoid attempting to schedule each job
@@ -2491,6 +2550,9 @@ scheduling multiple jobs simultaneously may be possible.
 This option may improve system responsiveness when large numbers of jobs
 (many hundreds) are submitted at the same time, but it will delay the
 initiation time of individual jobs. Also see \fBdefault_queue_depth\fR above.
+.TP
+\fBdisable_user_top\fB
+Disable use of the "scontrol top" command by non-privileged users.
 .TP
 \fBIgnore_NUMA\fR
 Some processors (e.g. AMD Opteron 6000 series) contain multiple NUMA nodes per
@@ -2539,6 +2601,11 @@ If a value is not explicitly configured, the default value is half of
 default value of 2 seconds.
 For example if MessageTimeout=10, the time limit will be 2 seconds
 (i.e. MIN(10/2, 2) = 2).
+.TP
+\fBmax_script_size=#\fR
+Specify the maximum size of a batch script, in bytes.
+The default value is 4 megabytes.
+Larger values may adversely impact system performance.
 .TP
 \fBmax_switch_wait=#\fR
 Maximum number of seconds that a job can delay execution waiting for the
@@ -2738,13 +2805,13 @@ Layer the select/cons_res plugin under the select/cray plugin, the default is
 to layer on select/linear.  This also allows all the options for
 \fBSelectType=select/cons_res\fR.
 .TP
-\fBNHC_NO_STEPS\fR
-Do not run the node health check after each step.  Default is to run
-after each step.
+\fBNHC\fR
+Run the node health check after each job allocation.  Default is not to run
+after each job allocation.
 .TP
-\fBNHC_NO\fR
-Do not run the node health check after each allocation.  Default is to run
-after each allocation.  This also sets NHC_NO_STEPS, so the NHC will never run.
+\fBNHC_STEP\fR
+Run the node health check after each step.  Default is not to run
+after each step.
 .RE
 .TP
 The following options are supported for \fBSelectType=select/cons_res\fR:
@@ -2814,7 +2881,7 @@ use the least loaded nodes in selected partitions.
 If a job allocation contains more resources than will be used for launching
 tasks (e.g. if whole nodes are allocated to a job), then rather than
 distributing a job's tasks evenly across it's allocated nodes, pack them as
-tightly as possible on thsee nodes.
+tightly as possible on these nodes.
 For example, consider a job allocation containing two \fBentire\fR nodes with
 eight CPUs each.
 If the job starts ten tasks across those two nodes without this option, it will
@@ -2928,6 +2995,11 @@ NOTE: Either \fBslurmctld\fR and \fBslurmd\fR daemons must not
 execute on the same nodes or the values of \fBSlurmctldPort\fR and
 \fBSlurmdPort\fR must be different.
 
+\fBNote\fR: On Cray systems, Realm-Specific IP Addressing (RSIP) will
+automatically try to interact with anything opened on ports 8192\-60000.
+Configure SlurmctldPort to use a port outside of the configured SrunPortRange
+and RSIP's port range.
+
 .TP
 \fBSlurmctldTimeout\fR
 The interval, in seconds, that the backup controller waits for the
@@ -3009,6 +3081,11 @@ NOTE: Either slurmctld and slurmd daemons must not execute
 on the same nodes or the values of \fBSlurmctldPort\fR and \fBSlurmdPort\fR
 must be different.
 
+\fBNote\fR: On Cray systems, Realm-Specific IP Addressing (RSIP) will
+automatically try to interact with anything opened on ports 8192\-60000.
+Configure SlurmdPort to use a port outside of the configured SrunPortRange
+and RSIP's port range.
+
 .TP
 \fBSlurmdSpoolDir\fR
 Fully qualified pathname of a directory into which the \fBslurmd\fR
@@ -3073,7 +3150,13 @@ By default these ports are ephemeral meaning the port numbers are selected
 by the kernel. Using this parameter allow sites to configure a range of ports
 from which srun ports will be selected. This is useful if sites want to
 allow only certain port range on their network.
-\fBNote\fR. A sufficient number of ports must be configured based on the
+
+\fBNote\fR: On Cray systems, Realm-Specific IP Addressing (RSIP) will
+automatically try to interact with anything opened on ports 8192\-60000.
+Configure SrunPortRange to use a range of ports above those used by RSIP,
+ideally 1000 or more ports, for example "SrunPortRange=60001\-63000".
+
+\fBNote\fR: A sufficient number of ports must be configured based on the
 estimated number of srun on the submission nodes considering that srun opens
 3 listening ports plus 2 more for every 48 hosts. Example:
 .RS
@@ -3362,8 +3445,7 @@ Acceptable values include:
 .RS
 .TP 21
 \fBtopology/3d_torus\fR
-default for Sun Constellation
-systems, best\-fit logic over three\-dimensional topology
+best\-fit logic over three\-dimensional topology
 .TP
 \fBtopology/node_rank\fR
 orders nodes based upon information a node_rank field in the node record
@@ -3694,7 +3776,12 @@ to for work on this particular node. By default there is a single port number
 for all \fBslurmd\fR daemons on all compute nodes as defined by the
 \fBSlurmdPort\fR configuration parameter. Use of this option is not generally
 recommended except for development or testing purposes. If multiple
-\fBslurmd\fR daemons execute on a node this can specify a range of ports
+\fBslurmd\fR daemons execute on a node this can specify a range of ports.
+
+\fBNote\fR: On Cray systems, Realm-Specific IP Addressing (RSIP) will
+automatically try to interact with anything opened on ports 8192\-60000.
+Configure Port to use a port outside of the configured SrunPortRange and
+RSIP's port range.
 
 .TP
 \fBProcs\fR
@@ -3966,6 +4053,11 @@ number for all \fBslurmd\fR daemons on all frontend nodes as defined by the
 \fBSlurmdPort\fR configuration parameter. Use of this option is not generally
 recommended except for development or testing purposes.
 
+\fBNote\fR: On Cray systems, Realm-Specific IP Addressing (RSIP) will
+automatically try to interact with anything opened on ports 8192\-60000.
+Configure Port to use a port outside of the configured SrunPortRange and
+RSIP's port range.
+
 .TP
 \fBReason\fR
 Identifies the reason for a frontend node being in state "DOWN", "DRAINED"
@@ -4069,44 +4161,6 @@ Also refer to DenyQos.
 \fBAlternate\fR
 Partition name of alternate partition to be used if the state of this partition
 is "DRAIN" or "INACTIVE."
-
-.TP
-\fBTRESBillingWeights\fR
-TRESBillingWeights is used to define the billing weights of each TRES type that
-will be used in calcuating the usage of a job.
-
-Billing weights are specified as a comma-separated list of
-\fI<TRES Type>\fR=\fI<TRES Billing Weight>\fR pairs.
-
-Any TRES Type is available for billing. Note that base the unit for memory and
-burst buffers is megabytes.
-
-By default the billing of TRES is calculated as the sum of all TRES types
-multiplied by their corresponding billing weight.
-
-The weighted amount of a resource can be adjusted by adding a suffix of K,M,G,T
-or P after the billing weight. For example, a memory weight of "mem=.25" on a
-job allocated 8GB will be billed 2048 (8192MB *.25) units. A memory weight of
-"mem=.25G" on the same job will be billed 2 (8192MB * (.25/1024)) units.
-
-When a job is allocated 1 CPU and 8 GB of memory on a partition configured with
-TRESBillingWeights="CPU=1.0,Mem=0.25G,GRES/gpu=2.0", the billable TRES will be:
-(1*1.0) + (8*0.25) + (0*2.0) = 3.0.
-
-If PriorityFlags=MAX_TRES is configured, the billable TRES is calculated as the
-MAX of individual TRES' on a node (e.g. cpus, mem, gres) plus the sum of all
-global TRES' (e.g. licenses). Using the same example above the billable TRES
-will be MAX(1*1.0, 8*0.25) + (0*2.0) = 2.0.
-
-If TRESBillingWeights is not defined then the job is billed against the total
-number of allocated CPUs.
-
-\fBNOTE:\fR TRESBillingWeights is only used when calcuating fairshare and
-doesn't affect job priority directly as it is currently not used for the size of
-the job. If you want TRES' to play a role in the job's priority then refer to
-the PriorityWeightTRES option.
-
-.RE
 
 .TP
 \fBDefault\fR
@@ -4347,7 +4401,9 @@ The default value is "NO".
 .TP
 \fBSelectTypeParameters\fR
 Partition\-specific resource allocation type.
-Supported values are \fBCR_Core\fR and \fBCR_Socket\fR.
+This option replaces the global \fBSelectTypeParameters\fR value.
+Supported values are \fBCR_Core\fR, \fBCR_Core_Memory\fR, \fBCR_Socket\fR and
+\fBCR_Socket_Memory\fR.
 Use requires the system\-wide \fBSelectTypeParameters\fR value be set.
 
 .TP
@@ -4448,6 +4504,44 @@ and jobs already queued may not be allocated nodes and run.
 See also the "Alternate" partition specification.
 .RE
 
+.TP
+\fBTRESBillingWeights\fR
+TRESBillingWeights is used to define the billing weights of each TRES type that
+will be used in calcuating the usage of a job.
+
+Billing weights are specified as a comma-separated list of
+\fI<TRES Type>\fR=\fI<TRES Billing Weight>\fR pairs.
+
+Any TRES Type is available for billing. Note that base the unit for memory and
+burst buffers is megabytes.
+
+By default the billing of TRES is calculated as the sum of all TRES types
+multiplied by their corresponding billing weight.
+
+The weighted amount of a resource can be adjusted by adding a suffix of K,M,G,T
+or P after the billing weight. For example, a memory weight of "mem=.25" on a
+job allocated 8GB will be billed 2048 (8192MB *.25) units. A memory weight of
+"mem=.25G" on the same job will be billed 2 (8192MB * (.25/1024)) units.
+
+When a job is allocated 1 CPU and 8 GB of memory on a partition configured with
+TRESBillingWeights="CPU=1.0,Mem=0.25G,GRES/gpu=2.0", the billable TRES will be:
+(1*1.0) + (8*0.25) + (0*2.0) = 3.0.
+
+If PriorityFlags=MAX_TRES is configured, the billable TRES is calculated as the
+MAX of individual TRES' on a node (e.g. cpus, mem, gres) plus the sum of all
+global TRES' (e.g. licenses). Using the same example above the billable TRES
+will be MAX(1*1.0, 8*0.25) + (0*2.0) = 2.0.
+
+If TRESBillingWeights is not defined then the job is billed against the total
+number of allocated CPUs.
+
+\fBNOTE:\fR TRESBillingWeights is only used when calcuating fairshare and
+doesn't affect job priority directly as it is currently not used for the size of
+the job. If you want TRES' to play a role in the job's priority then refer to
+the PriorityWeightTRES option.
+
+.RE
+
 .SH "Prolog and Epilog Scripts"
 There are a variety of prolog and epilog program options that
 execute with various permissions and at various times.
@@ -4510,6 +4604,24 @@ Otherwise it will not be set.
 To reference this specific task of a job array, combine
 SLURM_ARRAY_JOB_ID with SLURM_ARRAY_TASK_ID
 (e.g. "scontrol update ${SLURM_ARRAY_JOB_ID}_{$SLURM_ARRAY_TASK_ID} ...");
+Available in \fBPrologSlurmctld\fR and \fBEpilogSlurmctld\fR only.
+.TP
+\fBSLURM_ARRAY_TASK_MAX\fR
+If this job is part of a job array, this will be set to the maximum
+task ID.
+Otherwise it will not be set.
+Available in \fBPrologSlurmctld\fR and \fBEpilogSlurmctld\fR only.
+.TP
+\fBSLURM_ARRAY_TASK_MIN\fR
+If this job is part of a job array, this will be set to the minimum
+task ID.
+Otherwise it will not be set.
+Available in \fBPrologSlurmctld\fR and \fBEpilogSlurmctld\fR only.
+.TP
+\fBSLURM_ARRAY_TASK_STEP\fR
+If this job is part of a job array, this will be set to the step
+size of task IDs.
+Otherwise it will not be set.
 Available in \fBPrologSlurmctld\fR and \fBEpilogSlurmctld\fR only.
 .TP
 \fBSLURM_CLUSTER_NAME\fR
@@ -4580,7 +4692,7 @@ User name of the job's owner.
 .SH "NETWORK TOPOLOGY"
 Slurm is able to optimize job allocations to minimize network contention.
 Special Slurm logic is used to optimize allocations on systems with a
-three\-dimensional interconnect (BlueGene, Sun Constellation, etc.)
+three\-dimensional interconnect (BlueGene, etc.)
 and information about configuring those systems are available on
 web pages available here: <http://slurm.schedmd.com/>.
 For a hierarchical network, Slurm needs to have detailed information
@@ -4594,7 +4706,7 @@ so as to minimize the use of higher\-level switches.
 The \fBTopologyPlugin\fR parameter controls which plugin is used to
 collect network topology information.
 The only values presently supported are
-"topology/3d_torus" (default for IBM BlueGene, Sun Constellation and
+"topology/3d_torus" (default for IBM BlueGene and
 Cray XT/XE systems, performs best\-fit logic over three\-dimensional topology),
 "topology/none" (default for other systems,
 best\-fit logic over one\-dimensional topology),

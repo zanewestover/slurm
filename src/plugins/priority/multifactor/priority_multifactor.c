@@ -74,6 +74,7 @@
 #include "slurm/slurm_errno.h"
 
 #include "src/common/parse_time.h"
+#include "src/common/slurm_mcs.h"
 #include "src/common/slurm_time.h"
 #include "src/common/xstring.h"
 #include "src/common/gres.h"
@@ -100,6 +101,7 @@ time_t last_job_update __attribute__((weak_import)) = (time_t) 0;
 uint16_t part_max_priority __attribute__((weak_import)) = 0;
 slurm_ctl_conf_t slurmctld_conf __attribute__((weak_import));
 int slurmctld_tres_cnt __attribute__((weak_import)) = 0;
+int accounting_enforce __attribute__((weak_import)) = 0;
 #else
 void *acct_db_conn = NULL;
 uint32_t cluster_cpus = NO_VAL;
@@ -108,6 +110,7 @@ time_t last_job_update = (time_t) 0;
 uint16_t part_max_priority = 0;
 slurm_ctl_conf_t slurmctld_conf;
 int slurmctld_tres_cnt = 0;
+int accounting_enforce = 0;
 #endif
 
 /*
@@ -756,6 +759,10 @@ static double _calc_billable_tres(struct job_record *job_ptr, time_t start_time)
 	double *billing_weights = NULL;
 	struct part_record *part_ptr = job_ptr->part_ptr;
 
+	/* We don't have any resources allocated, just return 0. */
+	if (!job_ptr->tres_alloc_cnt)
+		return 0;
+
 	/* Don't recalculate unless the job is new or resized */
 	if ((!fuzzy_equal(job_ptr->billable_tres, NO_VAL)) &&
 	    difftime(job_ptr->resize_time, start_time) < 0.0)
@@ -778,23 +785,21 @@ static double _calc_billable_tres(struct job_record *job_ptr, time_t start_time)
 
 	billing_weights = part_ptr->billing_weights;
 	for (i = 0; i < slurmctld_tres_cnt; i++) {
-		bool   is_mem      = false;
 		double tres_weight = billing_weights[i];
 		char  *tres_type   = assoc_mgr_tres_array[i]->type;
-		char  *tres_name   = assoc_mgr_tres_array[i]->name;
 		double tres_value  = job_ptr->tres_alloc_cnt[i];
 
 		if (priority_debug)
-			info("BillingWeight: %s%s%s = %f * %f = %f", tres_type,
-			     (tres_name) ? ":" : "",
-			     (tres_name) ? tres_name : "",
+			info("BillingWeight: %s = %f * %f = %f",
+			     assoc_mgr_tres_name_array[i],
 			     tres_value, tres_weight, tres_value * tres_weight);
 
 		tres_value *= tres_weight;
 
 		if ((flags & PRIORITY_FLAGS_MAX_TRES) &&
-		    ((is_mem) ||
-		     (!strcasecmp(tres_type, "cpu")) ||
+		    ((i == TRES_ARRAY_CPU) ||
+		     (i == TRES_ARRAY_MEM) ||
+		     (i == TRES_ARRAY_NODE) ||
 		     (!strcasecmp(tres_type, "gres"))))
 			to_bill_node = MAX(to_bill_node, tres_value);
 		else
@@ -820,7 +825,7 @@ static void _handle_qos_tres_run_secs(long double *tres_run_decay,
 {
 	int i;
 
-	if (!qos)
+	if (!qos || !(accounting_enforce & ACCOUNTING_ENFORCE_LIMITS))
 		return;
 
 	for (i=0; i<slurmctld_tres_cnt; i++) {
@@ -864,7 +869,7 @@ static void _handle_assoc_tres_run_secs(long double *tres_run_decay,
 {
 	int i;
 
-	if (!assoc)
+	if (!assoc || !(accounting_enforce & ACCOUNTING_ENFORCE_LIMITS))
 		return;
 
 	for (i=0; i<slurmctld_tres_cnt; i++) {
@@ -1060,24 +1065,32 @@ static int _apply_new_usage(struct job_record *job_ptr,
 	if (priority_debug) {
 		info("job %u ran for %g seconds with TRES counts of",
 		     job_ptr->job_id, run_delta);
-		for (i=0; i<slurmctld_tres_cnt; i++) {
-			if (!job_ptr->tres_alloc_cnt[i])
-				continue;
-			info("TRES %s: %"PRIu64,
-			     assoc_mgr_tres_name_array[i],
-			     job_ptr->tres_alloc_cnt[i]);
-		}
+		if (job_ptr->tres_alloc_cnt) {
+			for (i=0; i<slurmctld_tres_cnt; i++) {
+				if (!job_ptr->tres_alloc_cnt[i])
+					continue;
+				info("TRES %s: %"PRIu64,
+				     assoc_mgr_tres_name_array[i],
+				     job_ptr->tres_alloc_cnt[i]);
+			}
+		} else
+			info("No alloced TRES, state is %s",
+			     job_state_string(job_ptr->job_state));
 	}
 	/* get the time in decayed fashion */
 	run_decay = run_delta * pow(decay_factor, run_delta);
 	/* clang needs these memset to avoid a warning */
 	memset(tres_run_decay, 0, sizeof(tres_run_decay));
 	memset(tres_run_delta, 0, sizeof(tres_run_delta));
-	for (i=0; i<slurmctld_tres_cnt; i++) {
-		tres_run_delta[i] = tres_time_delta *
-			job_ptr->tres_alloc_cnt[i];
-		tres_run_decay[i] = (long double)run_decay *
-			(long double)job_ptr->tres_alloc_cnt[i];
+	if (job_ptr->tres_alloc_cnt) {
+		for (i=0; i<slurmctld_tres_cnt; i++) {
+			if (!job_ptr->tres_alloc_cnt[i])
+				continue;
+			tres_run_delta[i] = tres_time_delta *
+				job_ptr->tres_alloc_cnt[i];
+			tres_run_decay[i] = (long double)run_decay *
+				(long double)job_ptr->tres_alloc_cnt[i];
+		}
 	}
 
 	assoc_mgr_lock(&locks);
@@ -1830,12 +1843,15 @@ extern List priority_p_get_priority_factors_list(
 			if (_filter_job(job_ptr, req_job_list, req_user_list))
 				continue;
 
-			if ((slurmctld_conf.private_data & PRIVATE_DATA_JOBS)
-			    && (job_ptr->user_id != uid)
-			    && !validate_operator(uid)
-			    && !assoc_mgr_is_user_acct_coord(
-				    acct_db_conn, uid,
-				    job_ptr->account))
+			if ((slurmctld_conf.private_data & PRIVATE_DATA_JOBS) &&
+			    (job_ptr->user_id != uid) &&
+			    !validate_operator(uid) &&
+			    (((slurm_mcs_get_privatedata() == 0) &&
+			      !assoc_mgr_is_user_acct_coord(acct_db_conn, uid,
+							    job_ptr->account))||
+			     ((slurm_mcs_get_privatedata() == 1) &&
+			      (mcs_g_check_mcs_label(uid, job_ptr->mcs_label)
+			       != 0))))
 				continue;
 
 			obj = xmalloc(sizeof(priority_factors_object_t));

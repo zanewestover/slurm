@@ -198,7 +198,7 @@ if(defined($queueList)) {
 
 		$job->{'allocNodeList'} = $job->{'nodes'} || "--";
 		$job->{'stateCode'} = stateCode($job->{'job_state'});
-		$job->{'user_name'} = getpwuid($job->{'user_id'});
+		$job->{'user_name'} = getpwuid($job->{'user_id'}) || "nobody";
 		$job->{'name'} = "Allocation" if !$job->{'name'};
 
 		# Filter jobs according to options and arguments
@@ -227,8 +227,8 @@ if(defined($queueList)) {
 			print_job_brief($job, $line);
 			$line++;
 		}
-		$rc = 0;
 	}
+	$rc = 0;
 }
 
 # Exit with status code
@@ -245,11 +245,13 @@ sub stateCode
 	if(!defined($state)) {
 		return 'U';
 	}
-
-	switch($state) {
+	switch($state & JOB_STATE_BASE) {
 		case [JOB_COMPLETE,
 		      JOB_CANCELLED,
 		      JOB_TIMEOUT,
+		      JOB_NODE_FAIL,
+		      JOB_PREEMPTED,
+		      JOB_BOOT_FAIL,
 		      JOB_FAILED]    { return 'C' }
 		case [JOB_RUNNING]   { return 'R' }
 		case [JOB_PENDING]   { return 'Q' }

@@ -123,7 +123,7 @@ main (int argc, char *argv[])
 	log_init("scontrol", opts, SYSLOG_FACILITY_DAEMON, NULL);
 
 	if (getenv ("SCONTROL_ALL"))
-		all_flag= 1;
+		all_flag = 1;
 	if ((env_val = getenv("SLURM_CLUSTERS"))) {
 		if (!(clusters = slurmdb_get_info_cluster(env_val))) {
 			print_db_notok(env_val, 1);
@@ -394,18 +394,23 @@ _write_config (void)
 
 
 	if (error_code == SLURM_SUCCESS) {
+		int save_all_flag = all_flag;
+		all_flag = 1;
+
 		/* now gather node info */
-		error_code = scontrol_load_nodes(&node_info_ptr, 0);
+		error_code = scontrol_load_nodes(&node_info_ptr, SHOW_ALL);
 
 		if (error_code) {
 			exit_code = 1;
 			if (quiet_flag != 1)
 				slurm_perror ("slurm_load_node error");
+			all_flag = save_all_flag;
 			return;
 		}
 
 		/* now gather partition info */
 		error_code = scontrol_load_partitions(&part_info_ptr);
+		all_flag = save_all_flag;
 		if (error_code) {
 			exit_code = 1;
 			if (quiet_flag != 1)
@@ -652,6 +657,7 @@ static int _reboot_nodes(char *node_list)
 
 	slurm_msg_t_init(&msg);
 
+	bzero(&req, sizeof(reboot_msg_t));
 	req.node_list = node_list;
 	msg.msg_type = REQUEST_REBOOT_NODES;
 	msg.data = &req;
@@ -1007,6 +1013,23 @@ _process_command (int argc, char *argv[])
 			for (i = 1; i < argc; i++) {
 				scontrol_suspend(argv[0], argv[i]);
 			}
+		}
+	}
+	else if (strncasecmp (tag, "top", MAX(tag_len, 2)) == 0) {
+		if (argc < 2) {
+			exit_code = 1;
+			if (quiet_flag != 1)
+				fprintf(stderr,
+					"too few arguments for keyword:%s\n",
+					tag);
+		} else if (argc > 2) {
+			exit_code = 1;
+			if (quiet_flag != 1)
+				fprintf(stderr,
+					"too many arguments for keyword:%s\n",
+					tag);
+		} else {
+			scontrol_top_job(argv[1]);
 		}
 	}
 	else if (strncasecmp (tag, "wait_job", MAX(tag_len, 2)) == 0) {
@@ -1966,6 +1989,7 @@ scontrol [<OPTION>] [<COMMAND>]                                            \n\
      shutdown <OPTS>          shutdown slurm daemons                       \n\
 			      (the primary controller will be stopped)     \n\
      suspend <job_list>       susend specified job (see resume)            \n\
+     top <job_id>             Put specified job first in queue for user    \n\
      takeover                 ask slurm backup controller to take over     \n\
      uhold <jobid_list>       place user hold on specified job (see hold)  \n\
      update <SPECIFICATIONS>  update job, node, partition, reservation,    \n\

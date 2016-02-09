@@ -719,7 +719,7 @@ job_desc_msg_create_from_opts (void)
 	}
 	j->user_id        = opt.uid;
 	j->dependency     = opt.dependency;
-	if (opt.nice)
+	if (opt.nice != NO_VAL)
 		j->nice   = NICE_OFFSET + opt.nice;
 	if (opt.priority)
 		j->priority = opt.priority;
@@ -752,6 +752,8 @@ job_desc_msg_create_from_opts (void)
 		j->burst_buffer = opt.burst_buffer;
 	if (opt.begin)
 		j->begin_time = opt.begin;
+	if (opt.deadline)
+		j->deadline = opt.deadline;
 	if (opt.licenses)
 		j->licenses = opt.licenses;
 	if (opt.network)
@@ -862,6 +864,8 @@ job_desc_msg_create_from_opts (void)
 
 	if (opt.power_flags)
 		j->power_flags = opt.power_flags;
+	if (opt.mcs_label)
+		j->mcs_label = opt.mcs_label;
 
 	return j;
 }

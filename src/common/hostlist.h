@@ -1,7 +1,5 @@
 /*****************************************************************************\
- *  $Id$
- *****************************************************************************
- *  $LSDId: hostlist.h,v 1.4 2003/09/19 21:37:34 grondo Exp $
+ *  hostlist.h
  *****************************************************************************
  *  Copyright (C) 2002 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -42,9 +40,6 @@
 #define _HOSTLIST_H
 
 #include <unistd.h>		/* load ssize_t definition */
-
-/* max size of internal hostrange buffer */
-#define MAXHOSTRANGELEN 8192
 
 /* Since users can specify a numeric range in the prefix, we need to prevent
  * expressions that can consume all of the memory on a system and crash the

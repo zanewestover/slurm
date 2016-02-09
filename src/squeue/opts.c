@@ -481,7 +481,7 @@ _parse_state( char* str, uint32_t* states )
 	uint32_t i;
 	char *state_names;
 
-	if ((i = job_state_num(str)) >= 0) {
+	if ((i = job_state_num(str)) != NO_VAL) {
 		*states = i;
 		return SLURM_SUCCESS;
 	}
@@ -1474,6 +1474,16 @@ extern int parse_long_format( char* format_long )
 						    field_size,
 						    right_justify,
 						    suffix );
+			else if (!strcasecmp(token, "mcslabel"))
+				job_format_add_mcs_label(params.format_list,
+							 field_size,
+							 right_justify,
+							 suffix );
+			else if (!strcasecmp(token, "deadline"))
+				job_format_add_deadline(params.format_list,
+							field_size,
+							right_justify,
+							suffix );
 			else {
 				job_format_add_invalid( params.format_list,
 							field_size,

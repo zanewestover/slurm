@@ -320,7 +320,7 @@ sacct [<OPTION>]                                                            \n \
      -j, --jobs:                                                            \n\
 	           Format is <job(.step)>. Display information about this   \n\
                    job or comma-separated list of jobs. The default is all  \n\
-                   jobs. Adding .step will display the specfic job step of  \n\
+                   jobs. Adding .step will display the specific job step of  \n\
                    that job. (A step id of 'batch' will display the         \n\
                    information about the batch step.)                       \n\
      -k, --timelimit-min:                                                   \n\
@@ -373,8 +373,8 @@ sacct [<OPTION>]                                                            \n \
      -s, --state:                                                           \n\
 	           Select jobs based on their current state or the state    \n\
                    they were in during the time period given: running (r),  \n\
-                   completed (cd), failed (f), timeout (to), resizing (rs)  \n\
-                   and node_fail (nf).                                      \n\
+                   completed (cd), failed (f), timeout (to), resizing (rs), \n\
+                   deadline (dl) and node_fail (nf).                        \n\
      -S, --starttime:                                                       \n\
                    Select jobs eligible after this time.  Default is        \n\
                    00:00:00 of the current day, unless '-s' is set then     \n\

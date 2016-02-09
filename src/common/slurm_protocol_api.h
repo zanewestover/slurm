@@ -259,6 +259,12 @@ char *slurm_get_gres_plugins(void);
  */
 char *slurm_get_job_submit_plugins(void);
 
+/* slurm_get_knl_plugins
+ * get knl_plugins from slurmctld_conf object from slurmctld_conf object
+ * RET char *   - knl_plugins, MUST be xfreed by caller
+ */
+char *slurm_get_knl_plugins(void);
+
 /* slurm_get_slurmctld_plugstack
  * get slurmctld_plugstack from slurmctld_conf object from
  * slurmctld_conf object
@@ -601,6 +607,14 @@ char *slurm_get_launch_type(void);
  * RET 0 or error code
  */
 int slurm_set_launch_type(char *launch_type);
+
+/* slurm_get_mcs_plugin
+ * RET mcs_plugin name, must be xfreed by caller */
+char *slurm_get_mcs_plugin(void);
+
+/* slurm_get_mcs_plugin_params
+ * RET mcs_plugin_params name, must be xfreed by caller */
+char *slurm_get_mcs_plugin_params(void);
 
 /* slurm_get_preempt_mode
  * returns the PreemptMode value from slurmctld_conf object

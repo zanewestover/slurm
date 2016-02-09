@@ -106,7 +106,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_aix.m4 \
 	$(top_srcdir)/auxdir/x_ac_blcr.m4 \
 	$(top_srcdir)/auxdir/x_ac_bluegene.m4 \
-	$(top_srcdir)/auxdir/x_ac_cflags.m4 \
 	$(top_srcdir)/auxdir/x_ac_cray.m4 \
 	$(top_srcdir)/auxdir/x_ac_curl.m4 \
 	$(top_srcdir)/auxdir/x_ac_databases.m4 \
@@ -135,7 +134,6 @@ am__aclocal_m4_deps = $(top_srcdir)/auxdir/ax_lib_hdf5.m4 \
 	$(top_srcdir)/auxdir/x_ac_setproctitle.m4 \
 	$(top_srcdir)/auxdir/x_ac_sgi_job.m4 \
 	$(top_srcdir)/auxdir/x_ac_slurm_ssl.m4 \
-	$(top_srcdir)/auxdir/x_ac_sun_const.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
@@ -174,8 +172,14 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(pkglibdir)"
 LTLIBRARIES = $(pkglib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
-jobcomp_elasticsearch_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
-am_jobcomp_elasticsearch_la_OBJECTS = jobcomp_elasticsearch.lo
+@WITH_CURL_TRUE@jobcomp_elasticsearch_la_DEPENDENCIES =  \
+@WITH_CURL_TRUE@	$(am__DEPENDENCIES_1)
+am__jobcomp_elasticsearch_la_SOURCES_DIST = jobcomp_elasticsearch.c
+am__objects_1 = jobcomp_elasticsearch.lo
+@WITH_CURL_TRUE@am_jobcomp_elasticsearch_la_OBJECTS =  \
+@WITH_CURL_TRUE@	$(am__objects_1)
+am__EXTRA_jobcomp_elasticsearch_la_SOURCES_DIST =  \
+	jobcomp_elasticsearch.c
 jobcomp_elasticsearch_la_OBJECTS =  \
 	$(am_jobcomp_elasticsearch_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
@@ -222,8 +226,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(jobcomp_elasticsearch_la_SOURCES)
-DIST_SOURCES = $(jobcomp_elasticsearch_la_SOURCES)
+SOURCES = $(jobcomp_elasticsearch_la_SOURCES) \
+	$(EXTRA_jobcomp_elasticsearch_la_SOURCES)
+DIST_SOURCES = $(am__jobcomp_elasticsearch_la_SOURCES_DIST) \
+	$(am__EXTRA_jobcomp_elasticsearch_la_SOURCES_DIST)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -307,6 +313,7 @@ FREEIPMI_CPPFLAGS = @FREEIPMI_CPPFLAGS@
 FREEIPMI_LDFLAGS = @FREEIPMI_LDFLAGS@
 FREEIPMI_LIBS = @FREEIPMI_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
+GLIB_COMPILE_RESOURCES = @GLIB_COMPILE_RESOURCES@
 GLIB_GENMARSHAL = @GLIB_GENMARSHAL@
 GLIB_LIBS = @GLIB_LIBS@
 GLIB_MKENUMS = @GLIB_MKENUMS@
@@ -388,6 +395,8 @@ PAM_DIR = @PAM_DIR@
 PAM_LIBS = @PAM_LIBS@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKG_CONFIG = @PKG_CONFIG@
+PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 PMIX_CPPFLAGS = @PMIX_CPPFLAGS@
 PMIX_LDFLAGS = @PMIX_LDFLAGS@
 PMIX_LIBS = @PMIX_LIBS@
@@ -499,13 +508,12 @@ top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign
 PLUGIN_FLAGS = -module -avoid-version --export-dynamic
 AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/src/common
-@WITH_CURL_TRUE@ELASTICSEARCH = jobcomp_elasticsearch.la
-pkglib_LTLIBRARIES = $(ELASTICSEARCH)
-
-# Elasticsearch job completion logging plugin.
-jobcomp_elasticsearch_la_SOURCES = jobcomp_elasticsearch.c 
-jobcomp_elasticsearch_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS)
-jobcomp_elasticsearch_la_LIBADD = $(LIBCURL)
+AS_ELASTICSEARCH_SOURCES = jobcomp_elasticsearch.c
+@WITH_CURL_TRUE@pkglib_LTLIBRARIES = jobcomp_elasticsearch.la
+@WITH_CURL_TRUE@jobcomp_elasticsearch_la_SOURCES = $(AS_ELASTICSEARCH_SOURCES)
+@WITH_CURL_TRUE@jobcomp_elasticsearch_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS)
+@WITH_CURL_TRUE@jobcomp_elasticsearch_la_LIBADD = $(LIBCURL)
+@WITH_CURL_FALSE@EXTRA_jobcomp_elasticsearch_la_SOURCES = $(AS_ELASTICSEARCH_SOURCES)
 all: all-am
 
 .SUFFIXES:
