@@ -712,6 +712,8 @@ test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/task_cray.so                &&
    echo %{_libdir}/slurm/task_cray.so                >> $LIST
 test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/slurmctld_nonstop.so        &&
    echo %{_libdir}/slurm/slurmctld_nonstop.so        >> $LIST
+test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/slurmctld_xtconsumer.so     &&
+   echo %{_libdir}/slurm/slurmctld_xtconsumer.so        >> $LIST
 test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/switch_cray.so              &&
    echo %{_libdir}/slurm/switch_cray.so              >> $LIST
 test -f $RPM_BUILD_ROOT/%{_libdir}/slurm/proctrack_cray.so           &&

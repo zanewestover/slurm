@@ -1,3 +1,3 @@
 # Makefile for slurmctld plugins
 
-SUBDIRS = nonstop
+SUBDIRS = nonstop xtconsumer
