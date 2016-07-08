@@ -320,6 +320,7 @@ s_p_options_t slurm_conf_options[] = {
 	{"SlurmctldLogFile", S_P_STRING},
 	{"SlurmctldPidFile", S_P_STRING},
 	{"SlurmctldPlugstack", S_P_STRING},
+	{"SlurmctldPlugParams", S_P_STRING},
 	{"SlurmctldPort", S_P_STRING},
 	{"SlurmctldTimeout", S_P_UINT16},
 	{"SlurmdDebug", S_P_STRING},
@@ -2386,6 +2387,7 @@ free_slurm_conf (slurm_ctl_conf_t *ctl_conf_ptr, bool purge_node_hash)
 	xfree (ctl_conf_ptr->slurm_user_name);
 	xfree (ctl_conf_ptr->slurmctld_logfile);
 	xfree (ctl_conf_ptr->slurmctld_pidfile);
+	xfree (ctl_conf_ptr->slurmctld_plug_params);
 	xfree (ctl_conf_ptr->slurmctld_plugstack);
 	xfree (ctl_conf_ptr->slurmd_logfile);
 	xfree (ctl_conf_ptr->slurmd_pidfile);
@@ -2554,6 +2556,7 @@ init_slurm_conf (slurm_ctl_conf_t *ctl_conf_ptr)
 	xfree (ctl_conf_ptr->sched_logfile);
 	ctl_conf_ptr->sched_log_level		= (uint16_t) NO_VAL;
 	xfree (ctl_conf_ptr->slurmctld_pidfile);
+	xfree (ctl_conf_ptr->slurmctld_plug_params);
 	xfree (ctl_conf_ptr->slurmctld_plugstack);
 	ctl_conf_ptr->slurmctld_port		= (uint32_t) NO_VAL;
 	ctl_conf_ptr->slurmctld_port_count	= 1;
@@ -4055,6 +4058,8 @@ _validate_and_set_defaults(slurm_ctl_conf_t *conf, s_p_hashtbl_t *hashtbl)
 			    "SlurmctldPidFile", hashtbl))
 		conf->slurmctld_pidfile = xstrdup(DEFAULT_SLURMCTLD_PIDFILE);
 
+	s_p_get_string(&conf->slurmctld_plug_params, "SlurmctldPlugParams",
+		       hashtbl);
 	s_p_get_string(&conf->slurmctld_plugstack, "SlurmctldPlugstack",
 		       hashtbl);
 

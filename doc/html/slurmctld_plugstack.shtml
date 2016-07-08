@@ -6,7 +6,10 @@
 
 <p> This document describes slurmctld daemon's generic plugins and the API that
 defines them. It is intended as a resource to programmers wishing to write
-their own slurmctld generic plugins. This is version 100 of the API.
+their own slurmctld generic plugins.</p>
+
+<p>Note the configuration parameter SlurmctldPlugParams can be used to
+configure options for use by these plugins.</p>
 
 <p>The slurmctld generic plugin must conform to the
 Slurm Plugin API with the following specifications:
@@ -64,5 +67,5 @@ reliquishes them to the primary slurmctld daemon).</p>
 
 <p class="footer"><a href="#top">top</a>
 
-<p style="text-align:center;">Last modified 27 March 2015</p>
+<p style="text-align:center;">Last modified 8 July 2016</p>
 <!--#include virtual="footer.txt"-->

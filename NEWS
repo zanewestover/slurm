@@ -16,6 +16,8 @@ documents those changes that are of interest to users and administrators.
  -- Add salloc/sbatch/srun --spread-job to distribute tasks over as many nodes
     as possible. This also treats the --ntasks-node-node option as a maximum
     value.
+ -- Add new configuration parameter SlurmctldPlugParams with parameters for use
+    by the SlurmctldPlugstack plugins.
 
 * Changes in Slurm 16.05.3
 ==========================

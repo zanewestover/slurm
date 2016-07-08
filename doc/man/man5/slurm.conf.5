@@ -3006,6 +3006,24 @@ may write its process id. This may be used for automated signal processing.
 The default value is "/var/run/slurmctld.pid".
 
 .TP
+\fBSlurmctldPlugParams\fR
+A comma delimited list of parameters for use by \fBSlurmctldPlugstack\fR
+plugins.
+.RS
+.TP 20
+\fBXtconsumerOutput\fR
+Path to the xtconsumer output file, which must be globally readable.
+The default value is a file named "xtconsumer.out" in the same directory
+as the "slurm.conf" configuration file.
+Used by the xtconsumer plugin.
+.TP
+\fBXtconsumerPath\fR
+Path to the xtconsumer program.
+The default value is "/opt/cray/hss/default/bin/xtconsumer".
+Used by the xtconsumer plugin.
+.RE
+
+.TP
 \fBSlurmctldPlugstack\fR
 A comma delimited list of Slurm controller plugins to be started when the
 daemon begins and terminated when it ends.
