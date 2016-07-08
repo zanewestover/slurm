@@ -19,7 +19,7 @@ documents those changes that are of interest to users and administrators.
  -- Add new configuration parameter SlurmctldPlugParams with parameters for use
     by the SlurmctldPlugstack plugins.
  -- Add slurmctld/xtconsumer plugin for recording Cray network throttling and
-    quiescing statistics (just a stub for now).
+    quiescing statistics.
 
 * Changes in Slurm 16.05.3
 ==========================

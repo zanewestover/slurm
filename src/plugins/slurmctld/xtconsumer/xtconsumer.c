@@ -34,7 +34,18 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA.
 \*****************************************************************************/
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+
+#include <signal.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "src/common/slurm_xlator.h"	/* Must be first */
+#include "src/common/read_config.h"
+#include "src/common/slurm_protocol_api.h"
 #include "src/slurmctld/slurmctld_plugstack.h"
 
 /*
@@ -66,16 +77,171 @@ const char	plugin_name[]	= "Slurmctld xtconsumer plugin";
 const char	plugin_type[]	= "slurmctld/xtconsumer";
 const uint32_t	plugin_version	= SLURM_VERSION_NUMBER;
 
+static bool thread_running = false;
+static bool thread_shutdown = false;
+static pthread_mutex_t thread_flag_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t msg_thread_id;
+static pid_t child_pid = 0;
+
+static void *_msg_thread(void *no_data)
+{
+	ssize_t len, offset, out_len;
+	int pfd[2], fd_out = -1;
+	char buf[512];
+	char *argv[2] = {"xtconsumer", NULL };
+	char *xtconsumer_path, *xtconsumer_output;
+	char *plugin_params, *sep, *outpath2free = NULL;
+
+	if (pipe(pfd) == -1) {
+		error("%s: pipe: %m", plugin_name);
+		pthread_exit((void *) 0);
+	}
+
+	plugin_params = slurm_get_slurmctld_plug_params();
+	if (plugin_params) {
+		xtconsumer_path = strcasestr(plugin_params, "XtconsumerPath=");
+		if (xtconsumer_path) {
+			xtconsumer_path += 15;
+			sep = strchr(xtconsumer_path, ',');
+			if (sep)
+				sep[0] = '\0';
+		} else {
+			xtconsumer_path ="/opt/cray/hss/default/bin/xtconsumer";
+		}
+		xtconsumer_output = strcasestr(plugin_params,
+					       "XtconsumerOutput=");
+		if (xtconsumer_output) {
+			xtconsumer_output += 17;
+			sep = strchr(xtconsumer_output, ',');
+			if (sep)
+				sep[0] = '\0';
+		} else {
+			outpath2free = get_extra_conf_path("xtconsumer.out");
+			xtconsumer_output = outpath2free;
+		}
+	}
+
+// FIXME: Disable output buffering
+	child_pid = fork();
+	if (child_pid == 0) {
+		int fd = open("/dev/null", O_RDONLY);
+		dup2(fd, 0);		/* stdin from /dev/null */
+		dup2(pfd[1], 1);	/* stdout to pipe */
+		dup2(pfd[1], 2);	/* stderr to pipe */
+		close(pfd[0]);
+		close(pfd[1]);
+		execvp(xtconsumer_path, argv);
+		error("%s: execvp(%s): %m", xtconsumer_path, plugin_name);
+	} else if (child_pid < 0) {
+		error("%s: fork(%s): %m", xtconsumer_path, plugin_name);
+		child_pid = 0;
+		pthread_exit((void *) 0);
+	} else {
+		close(pfd[1]);
+
+		fd_out = open(xtconsumer_output, O_RDWR | O_CREAT | O_APPEND,
+			      0644);
+		if (fd_out < 0) {
+			error("%s: open(%s): %m",  plugin_name,
+			      xtconsumer_output);
+			xfree(outpath2free);
+			xfree(plugin_params);
+			pthread_exit((void *) 0);
+		}
+
+		while (1) {
+			len = read(pfd[0], buf, sizeof(buf));
+			if (len == 0)
+				break;
+			if (len < 0) {
+				if ((errno == EAGAIN) ||
+				    (errno == EWOULDBLOCK) ||
+				    (errno == EINTR))
+					continue;
+				error("%s: read(%s): %m", xtconsumer_path,
+				      plugin_name);
+				break;
+			}
+
+			offset = 0;
+			while (offset < len) {
+				out_len = write(fd_out, buf + offset,
+						len - offset);
+				if (out_len > 0) {
+					offset += out_len;
+				} else if ((errno == EAGAIN) ||
+					   (errno == EWOULDBLOCK) ||
+					   (errno == EINTR)) {
+					continue;
+				} else {
+					error("%s: write(%s): %m",
+					      plugin_name, xtconsumer_output);
+					break;
+				}
+			}
+			/* FIXME: also write to syslog */
+		}
+		if (fd_out >= 0)
+			close(fd_out);
+		close(pfd[0]);
+
+	}
+	xfree(outpath2free);
+	xfree(plugin_params);
+
+	pthread_exit((void *) 0);
+	return NULL;
+}
+
 extern int init(void)
 {
-	info("%s loaded", plugin_name);
+	pthread_attr_t thread_attr_msg;
+
+	slurm_mutex_lock(&thread_flag_mutex);
+	if (thread_running) {
+		error("nonstop thread already running");
+		slurm_mutex_unlock(&thread_flag_mutex);
+		return SLURM_ERROR;
+	}
+
+	slurm_attr_init(&thread_attr_msg);
+	if (pthread_create(&msg_thread_id, &thread_attr_msg,
+	                   _msg_thread, NULL)) {
+		error("pthread_create %m");
+	} else {
+		info("%s loaded", plugin_name);
+		thread_running = true;
+	}
+	slurm_attr_destroy(&thread_attr_msg);
+	slurm_mutex_unlock(&thread_flag_mutex);
 
 	return SLURM_SUCCESS;
 }
 
 extern int fini(void)
 {
-	info("%s unloaded", plugin_name);
+	int i;
+
+	slurm_mutex_lock(&thread_flag_mutex);
+	if (child_pid > 0) {
+		kill(child_pid, 15);
+		for (i = 0; i < 10; i++) {
+			(void) usleep(100000);
+			if ((kill(child_pid, 0) == -1) && (errno == ESRCH))
+				break;
+		}
+		if (i >= 10)
+			kill(child_pid, 9);
+		child_pid = 0;
+	}
+	if (msg_thread_id) {
+		thread_shutdown = true;
+		pthread_join(msg_thread_id, NULL);
+		msg_thread_id = 0;
+		thread_running = false;
+		thread_shutdown = false;
+	}
+	slurm_mutex_unlock(&thread_flag_mutex);
 
 	return SLURM_SUCCESS;
 }
