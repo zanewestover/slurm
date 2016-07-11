@@ -171,7 +171,8 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(pkglibdir)"
 LTLIBRARIES = $(pkglib_LTLIBRARIES)
-slurmctld_xtconsumer_la_LIBADD =
+am__DEPENDENCIES_1 =
+slurmctld_xtconsumer_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_slurmctld_xtconsumer_la_OBJECTS = xtconsumer.lo
 slurmctld_xtconsumer_la_OBJECTS =  \
 	$(am_slurmctld_xtconsumer_la_OBJECTS)
@@ -506,6 +507,7 @@ slurmctld_xtconsumer_la_SOURCES = \
 	xtconsumer.c
 
 slurmctld_xtconsumer_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS)
+slurmctld_xtconsumer_la_LIBADD = $(UTIL_LIBS)
 all: all-am
 
 .SUFFIXES:

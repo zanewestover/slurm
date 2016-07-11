@@ -38,6 +38,7 @@
 #define _GNU_SOURCE 1
 #endif
 
+#include <pty.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/types.h>
@@ -86,13 +87,13 @@ static pid_t child_pid = 0;
 static void *_msg_thread(void *no_data)
 {
 	ssize_t len, offset, out_len;
-	int pfd[2], fd_out = -1;
+	int fd_master = -1, fd_slave = -1, fd_out = -1;
 	char buf[512];
 	char *argv[2] = {"xtconsumer", NULL };
 	char *xtconsumer_path, *xtconsumer_output;
 	char *plugin_params, *sep, *outpath2free = NULL;
 
-	if (pipe(pfd) == -1) {
+	if (openpty(&fd_master, &fd_slave, NULL, NULL, NULL) < 0) {
 		error("%s: pipe: %m", plugin_name);
 		pthread_exit((void *) 0);
 	}
@@ -126,10 +127,9 @@ static void *_msg_thread(void *no_data)
 	if (child_pid == 0) {
 		int fd = open("/dev/null", O_RDONLY);
 		dup2(fd, 0);		/* stdin from /dev/null */
-		dup2(pfd[1], 1);	/* stdout to pipe */
-		dup2(pfd[1], 2);	/* stderr to pipe */
-		close(pfd[0]);
-		close(pfd[1]);
+		dup2(fd_slave, 1);	/* stdout to pipe */
+		dup2(fd_slave, 2);	/* stderr to pipe */
+		close(fd_master);
 		execvp(xtconsumer_path, argv);
 		error("%s: execvp(%s): %m", xtconsumer_path, plugin_name);
 	} else if (child_pid < 0) {
@@ -137,7 +137,7 @@ static void *_msg_thread(void *no_data)
 		child_pid = 0;
 		pthread_exit((void *) 0);
 	} else {
-		close(pfd[1]);
+		close(fd_slave);
 
 		fd_out = open(xtconsumer_output, O_RDWR | O_CREAT | O_APPEND,
 			      0644);
@@ -150,7 +150,7 @@ static void *_msg_thread(void *no_data)
 		}
 
 		while (1) {
-			len = read(pfd[0], buf, sizeof(buf));
+			len = read(fd_master, buf, sizeof(buf));
 			if (len == 0)
 				break;
 			if (len < 0) {
@@ -183,7 +183,7 @@ static void *_msg_thread(void *no_data)
 		}
 		if (fd_out >= 0)
 			close(fd_out);
-		close(pfd[0]);
+		close(fd_master);
 
 	}
 	xfree(outpath2free);

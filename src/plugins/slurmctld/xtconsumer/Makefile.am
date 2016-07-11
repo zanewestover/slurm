@@ -12,3 +12,4 @@ slurmctld_xtconsumer_la_SOURCES = \
 	xtconsumer.c
 
 slurmctld_xtconsumer_la_LDFLAGS = $(SO_LDFLAGS) $(PLUGIN_FLAGS)
+slurmctld_xtconsumer_la_LIBADD = $(UTIL_LIBS)
