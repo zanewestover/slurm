@@ -5106,15 +5106,15 @@ extern int slurmdb_unpack_stats_msg(void **object, uint16_t protocol_version,
 		safe_unpack32(&stats_ptr->user_cnt, buffer);
 		safe_unpack32_array(&stats_ptr->rpc_user_id, &uint32_tmp,
 				    buffer);
-		if (uint32_tmp != stats_ptr->type_cnt)
+		if (uint32_tmp != stats_ptr->user_cnt)
 			goto unpack_error;
 		safe_unpack32_array(&stats_ptr->rpc_user_cnt, &uint32_tmp,
 				    buffer);
-		if (uint32_tmp != stats_ptr->type_cnt)
+		if (uint32_tmp != stats_ptr->user_cnt)
 			goto unpack_error;
 		safe_unpack64_array(&stats_ptr->rpc_user_time, &uint32_tmp,
 				    buffer);
-		if (uint32_tmp != stats_ptr->type_cnt)
+		if (uint32_tmp != stats_ptr->user_cnt)
 			goto unpack_error;
 	} else {
 		error("%s: protocol_version %hu not supported",
