@@ -223,7 +223,7 @@ extern int sacctmgr_list_stats(void)
 
 	printf("Remote Procedure Call statistics by message type\n");
 	for (i = 0; i < buf->type_cnt; i++) {
-		printf("\t%-40s(%5u) count:%-6u "
+		printf("\t%-21s(%5u) count:%-6u "
 		       "ave_time:%-6u total_time:%"PRIu64"\n",
 		       slurmdbd_msg_type_2_str(buf->rpc_type_id[i], 1),
 		       buf->rpc_type_id[i], buf->rpc_type_cnt[i],
