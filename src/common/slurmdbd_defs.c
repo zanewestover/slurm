@@ -643,6 +643,9 @@ extern Buf pack_slurmdbd_msg(slurmdbd_msg_t *req, uint16_t rpc_version)
 		packstr((char *)req->data, buffer);
 		break;
 	case DBD_RECONFIG:
+	case DBD_GET_STATS:
+	case DBD_CLEAR_STATS:
+	case DBD_SHUTDOWN:
 		break;
 	default:
 		error("slurmdbd: Invalid message type pack %u(%s:%u)",
@@ -832,6 +835,9 @@ extern int unpack_slurmdbd_msg(slurmdbd_msg_t *resp,
 	case DBD_GET_CONFIG:
 		/* (handled in src/slurmdbd/proc_req.c) */
 	case DBD_RECONFIG:
+	case DBD_GET_STATS:
+	case DBD_CLEAR_STATS:
+	case DBD_SHUTDOWN:
 		/* No message to unpack */
 		break;
 	default:
@@ -1523,6 +1529,24 @@ extern char *slurmdbd_msg_type_2_str(slurmdbd_msg_type_t msg_type, int get_enum)
 			return "DBD_GOT_MULT_MSG";
 		} else
 			return "Got Multiple Message Returns";
+		break;
+	case DBD_GET_STATS:
+		if (get_enum) {
+			return "DBD_GET_STATS";
+		} else
+			return "Get daemon statistics";
+		break;
+	case DBD_CLEAR_STATS:
+		if (get_enum) {
+			return "DBD_CLEAR_STATS";
+		} else
+			return "Clear daemon statistics";
+		break;
+	case DBD_SHUTDOWN:
+		if (get_enum) {
+			return "DBD_SHUTDOWN";
+		} else
+			return "Shutdown daemon";
 		break;
 	default:
 		return "Unknown";

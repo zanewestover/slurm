@@ -2882,3 +2882,42 @@ extern int acct_storage_p_reset_lft_rgt(void *db_conn, uid_t uid,
 {
 	return SLURM_SUCCESS;
 }
+
+extern int acct_storage_p_get_stats(void *db_conn)
+{
+	slurmdbd_msg_t msg;
+	int rc = SLURM_SUCCESS;
+
+	memset(&msg, 0, sizeof(slurmdbd_msg_t));
+
+	msg.msg_type = DBD_GET_STATS;
+	slurm_send_slurmdbd_recv_rc_msg(SLURM_PROTOCOL_VERSION, &msg, &rc);
+
+	return rc;
+}
+
+extern int acct_storage_p_clear_stats(void *db_conn)
+{
+	slurmdbd_msg_t msg;
+	int rc = SLURM_SUCCESS;
+
+	memset(&msg, 0, sizeof(slurmdbd_msg_t));
+
+	msg.msg_type = DBD_CLEAR_STATS;
+	slurm_send_slurmdbd_recv_rc_msg(SLURM_PROTOCOL_VERSION, &msg, &rc);
+
+	return rc;
+}
+
+extern int acct_storage_p_shutdown(void *db_conn)
+{
+	slurmdbd_msg_t msg;
+	int rc = SLURM_SUCCESS;
+
+	memset(&msg, 0, sizeof(slurmdbd_msg_t));
+
+	msg.msg_type = DBD_SHUTDOWN;
+	slurm_send_slurmdbd_recv_rc_msg(SLURM_PROTOCOL_VERSION, &msg, &rc);
+
+	return rc;
+}
