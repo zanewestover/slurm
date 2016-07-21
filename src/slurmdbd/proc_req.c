@@ -524,8 +524,6 @@ proc_req(slurmdbd_conn_t *slurmdbd_conn,
 		case DBD_GET_STATS:
 			rc = _get_stats(slurmdbd_conn, in_buffer, out_buffer,
 					uid);
-			*out_buffer = make_dbd_rc_msg(
-				slurmdbd_conn->rpc_version, rc, NULL, 0);
 			break;
 		case DBD_CLEAR_STATS:
 			rc = _clear_stats(slurmdbd_conn, in_buffer, out_buffer,
@@ -3877,18 +3875,28 @@ static int  _get_stats(slurmdbd_conn_t *slurmdbd_conn,
 	}
 
 	info("Get stats request received from UID %u", *uid);
+	*out_buffer = init_buf(32 * 1024);
+	pack16((uint16_t) DBD_GOT_STATS, *out_buffer);
 	slurm_mutex_lock(&rpc_mutex);
 	for (i = 0; i < rpc_type_size; i++) {
-//FIXME
-if (rpc_type_cnt[i]) info("TYPE:%u CNT:%u TIME:%"PRIu64, rpc_type_id[i], rpc_type_cnt[i], rpc_type_time[i]);
+		if (rpc_type_id[i] == 0)
+			break;
 	}
-	for (i = 0; i < rpc_user_size; i++) {
-if (rpc_user_cnt[i]) info("UID:%u CNT:%u TIME:%"PRIu64, rpc_user_id[i], rpc_user_cnt[i], rpc_user_time[i]);
+	pack32(i, *out_buffer);
+	pack16_array(rpc_type_id,   i, *out_buffer);
+	pack32_array(rpc_type_cnt,  i, *out_buffer);
+	pack64_array(rpc_type_time, i, *out_buffer);
+
+	for (i = 1; i < rpc_user_size; i++) {
+		if (rpc_user_id[i] == 0)
+			break;
 	}
+	pack32(i, *out_buffer);
+	pack32_array(rpc_user_id,   i, *out_buffer);
+	pack32_array(rpc_user_cnt,  i, *out_buffer);
+	pack64_array(rpc_user_time, i, *out_buffer);
 	slurm_mutex_unlock(&rpc_mutex);
 
-	*out_buffer = make_dbd_rc_msg(slurmdbd_conn->rpc_version,
-				      rc, comment, DBD_GET_STATS);
 	return rc;
 }
 

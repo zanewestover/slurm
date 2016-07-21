@@ -840,6 +840,9 @@ extern int unpack_slurmdbd_msg(slurmdbd_msg_t *resp,
 	case DBD_SHUTDOWN:
 		/* No message to unpack */
 		break;
+	case DBD_GOT_STATS:
+		info("GOT DBD_GET_STATS TO UNPACK");
+		break;
 	default:
 		error("slurmdbd: Invalid message type unpack %u(%s)",
 		      resp->msg_type,
@@ -1535,6 +1538,12 @@ extern char *slurmdbd_msg_type_2_str(slurmdbd_msg_type_t msg_type, int get_enum)
 			return "DBD_GET_STATS";
 		} else
 			return "Get daemon statistics";
+		break;
+	case DBD_GOT_STATS:
+		if (get_enum) {
+			return "DBD_GOT_STATS";
+		} else
+			return "Got daemon statistics data";
 		break;
 	case DBD_CLEAR_STATS:
 		if (get_enum) {

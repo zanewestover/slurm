@@ -2885,13 +2885,47 @@ extern int acct_storage_p_reset_lft_rgt(void *db_conn, uid_t uid,
 
 extern int acct_storage_p_get_stats(void *db_conn)
 {
-	slurmdbd_msg_t msg;
-	int rc = SLURM_SUCCESS;
+	slurmdbd_msg_t req, resp;
+	dbd_cond_msg_t get_msg;
+	int rc;
 
-	memset(&msg, 0, sizeof(slurmdbd_msg_t));
+	memset(&get_msg, 0, sizeof(dbd_cond_msg_t));
 
-	msg.msg_type = DBD_GET_STATS;
-	slurm_send_slurmdbd_recv_rc_msg(SLURM_PROTOCOL_VERSION, &msg, &rc);
+	req.msg_type = DBD_GET_STATS;
+	req.data = NULL;
+	rc = slurm_send_recv_slurmdbd_msg(SLURM_PROTOCOL_VERSION, &req, &resp);
+
+	if (rc != SLURM_SUCCESS)
+		error("slurmdbd: DBD_GET_STATS failure: %m");
+	else if (resp.msg_type == DBD_RC) {
+		dbd_rc_msg_t *msg = resp.data;
+		if (msg->return_code == SLURM_SUCCESS) {
+			info("RC:%d %s", msg->return_code, msg->comment);
+		} else {
+			slurm_seterrno(msg->return_code);
+			info("RC:%d %s", msg->return_code, msg->comment);
+		}
+		slurmdbd_free_rc_msg(msg);
+	} else if (resp.msg_type != DBD_GOT_STATS) {
+		error("slurmdbd: response type not DBD_GOT_STATS: %u",
+		      resp.msg_type);
+	} else {
+#if 1
+		info("slurmdbd: response type DBD_GOT_STATS");
+#else
+		got_msg = (dbd_list_msg_t *) resp.data;
+		/* do this just for this type since it could be called
+		 * multiple times, and if we send back and empty list
+		 * instead of no list we will only call this once.
+		 */
+		if (!got_msg->my_list)
+		        ret_list = list_create(NULL);
+		else
+			ret_list = got_msg->my_list;
+		got_msg->my_list = NULL;
+		slurmdbd_free_list_msg(got_msg);
+#endif
+	}
 
 	return rc;
 }
