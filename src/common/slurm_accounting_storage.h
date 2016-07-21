@@ -512,7 +512,7 @@ extern int acct_storage_g_reset_lft_rgt(void *db_conn, uid_t uid,
  * Get performance statistics.
  * RET: SLURM_SUCCESS on success SLURM_ERROR else
  */
-extern int acct_storage_g_get_stats(void *db_conn);
+extern int acct_storage_g_get_stats(void *db_conn, slurmdb_stats_rec_t **stats);
 
 /*
  * Clear performance statistics.

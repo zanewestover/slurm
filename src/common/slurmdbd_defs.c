@@ -841,7 +841,8 @@ extern int unpack_slurmdbd_msg(slurmdbd_msg_t *resp,
 		/* No message to unpack */
 		break;
 	case DBD_GOT_STATS:
-		info("GOT DBD_GET_STATS TO UNPACK");
+		rc = slurmdb_unpack_stats_msg(
+			(void **)&resp->data, rpc_version, buffer);
 		break;
 	default:
 		error("slurmdbd: Invalid message type unpack %u(%s)",
@@ -2972,7 +2973,7 @@ extern int slurmdbd_unpack_rec_msg(dbd_rec_msg_t **msg,
 		my_function = slurmdb_unpack_reservation_rec;
 		break;
 	default:
-		fatal("Unknown unpack type");
+		fatal("%s: Unknown unpack type", __func__);
 		return SLURM_ERROR;
 	}
 
@@ -3108,7 +3109,7 @@ extern int slurmdbd_unpack_cond_msg(dbd_cond_msg_t **msg,
 		my_function = slurmdb_unpack_event_cond;
 		break;
 	default:
-		fatal("Unknown unpack type");
+		fatal("%s: Unknown unpack type", __func__);
 		return SLURM_ERROR;
 	}
 
@@ -3641,7 +3642,7 @@ extern int slurmdbd_unpack_list_msg(dbd_list_msg_t **msg, uint16_t rpc_version,
 		my_destroy = slurmdbd_free_buffer;
 		break;
 	default:
-		fatal("Unknown unpack type");
+		fatal("%s: Unknown unpack type", __func__);
 		return SLURM_ERROR;
 	}
 
@@ -3761,7 +3762,7 @@ extern int slurmdbd_unpack_modify_msg(dbd_modify_msg_t **msg,
 		my_rec = slurmdb_unpack_user_rec;
 		break;
 	default:
-		fatal("Unknown unpack type");
+		fatal("%s: Unknown unpack type", __func__);
 		return SLURM_ERROR;
 	}
 

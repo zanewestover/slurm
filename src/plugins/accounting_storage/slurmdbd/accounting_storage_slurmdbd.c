@@ -2883,16 +2883,15 @@ extern int acct_storage_p_reset_lft_rgt(void *db_conn, uid_t uid,
 	return SLURM_SUCCESS;
 }
 
-extern int acct_storage_p_get_stats(void *db_conn)
+extern int acct_storage_p_get_stats(void *db_conn, slurmdb_stats_rec_t **stats)
 {
 	slurmdbd_msg_t req, resp;
-	dbd_cond_msg_t get_msg;
 	int rc;
 
-	memset(&get_msg, 0, sizeof(dbd_cond_msg_t));
+	xassert(stats);
+	memset(&req, 0, sizeof(slurmdbd_msg_t));
 
 	req.msg_type = DBD_GET_STATS;
-	req.data = NULL;
 	rc = slurm_send_recv_slurmdbd_msg(SLURM_PROTOCOL_VERSION, &req, &resp);
 
 	if (rc != SLURM_SUCCESS)
@@ -2910,21 +2909,7 @@ extern int acct_storage_p_get_stats(void *db_conn)
 		error("slurmdbd: response type not DBD_GOT_STATS: %u",
 		      resp.msg_type);
 	} else {
-#if 1
-		info("slurmdbd: response type DBD_GOT_STATS");
-#else
-		got_msg = (dbd_list_msg_t *) resp.data;
-		/* do this just for this type since it could be called
-		 * multiple times, and if we send back and empty list
-		 * instead of no list we will only call this once.
-		 */
-		if (!got_msg->my_list)
-		        ret_list = list_create(NULL);
-		else
-			ret_list = got_msg->my_list;
-		got_msg->my_list = NULL;
-		slurmdbd_free_list_msg(got_msg);
-#endif
+		*stats = (slurmdb_stats_rec_t *) resp.data;
 	}
 
 	return rc;

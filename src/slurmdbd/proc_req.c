@@ -191,14 +191,7 @@ static int   _step_start(slurmdbd_conn_t *slurmdbd_conn,
 			 Buf in_buffer, Buf *out_buffer, uint32_t *uid);
 
 static pthread_mutex_t rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int rpc_type_size = 0;	/* Size of rpc_type_* arrays */
-static uint16_t *rpc_type_id = NULL;
-static uint32_t *rpc_type_cnt = NULL;
-static uint64_t *rpc_type_time = NULL;
-static int rpc_user_size = 0;	/* Size of rpc_user_* arrays */
-static uint32_t *rpc_user_id = NULL;
-static uint32_t *rpc_user_cnt = NULL;
-static uint64_t *rpc_user_time = NULL;
+static slurmdb_stats_rec_t rpc_stats;
 
 /* Process an incoming RPC
  * slurmdbd_conn IN/OUT - in will that the newsockfd set before
@@ -225,30 +218,36 @@ proc_req(slurmdbd_conn_t *slurmdbd_conn,
 	safe_unpack16(&msg_type, in_buffer);
 
 	slurm_mutex_lock(&rpc_mutex);
-	if (rpc_type_size == 0) {
-		rpc_type_size = 100;  /* Capture info for first 100 RPC types */
-		rpc_type_id   = xmalloc(sizeof(uint16_t) * rpc_type_size);
-		rpc_type_cnt  = xmalloc(sizeof(uint32_t) * rpc_type_size);
-		rpc_type_time = xmalloc(sizeof(uint64_t) * rpc_type_size);
+	if (rpc_stats.type_cnt == 0) {
+		rpc_stats.type_cnt = 200;  /* Capture info for first 200 RPC types */
+		rpc_stats.rpc_type_id   =
+			xmalloc(sizeof(uint16_t) * rpc_stats.type_cnt);
+		rpc_stats.rpc_type_cnt  =
+			xmalloc(sizeof(uint32_t) * rpc_stats.type_cnt);
+		rpc_stats.rpc_type_time =
+			xmalloc(sizeof(uint64_t) * rpc_stats.type_cnt);
 	}
-	for (i = 0; i < rpc_type_size; i++) {
-		if (rpc_type_id[i] == 0)
-			rpc_type_id[i] = msg_type;
-		else if (rpc_type_id[i] != msg_type)
+	for (i = 0; i < rpc_stats.type_cnt; i++) {
+		if (rpc_stats.rpc_type_id[i] == 0)
+			rpc_stats.rpc_type_id[i] = msg_type;
+		else if (rpc_stats.rpc_type_id[i] != msg_type)
 			continue;
 		rpc_type_index = i;
 		break;
 	}
-	if (rpc_user_size == 0) {
-		rpc_user_size = 200;  /* Capture info for first 200 RPC users */
-		rpc_user_id   = xmalloc(sizeof(uint32_t) * rpc_user_size);
-		rpc_user_cnt  = xmalloc(sizeof(uint32_t) * rpc_user_size);
-		rpc_user_time = xmalloc(sizeof(uint64_t) * rpc_user_size);
+	if (rpc_stats.user_cnt == 0) {
+		rpc_stats.user_cnt = 200;  /* Capture info for first 200 RPC users */
+		rpc_stats.rpc_user_id   =
+			xmalloc(sizeof(uint32_t) * rpc_stats.user_cnt);
+		rpc_stats.rpc_user_cnt  =
+			xmalloc(sizeof(uint32_t) * rpc_stats.user_cnt);
+		rpc_stats.rpc_user_time =
+			xmalloc(sizeof(uint64_t) * rpc_stats.user_cnt);
 	}
-	for (i = 0; i < rpc_user_size; i++) {
-		if ((rpc_user_id[i] == 0) && (i != 0))
-			rpc_user_id[i] = *uid;
-		else if (rpc_user_id[i] != *uid)
+	for (i = 0; i < rpc_stats.user_cnt; i++) {
+		if ((rpc_stats.rpc_user_id[i] == 0) && (i != 0))
+			rpc_stats.rpc_user_id[i] = *uid;
+		else if (rpc_stats.rpc_user_id[i] != *uid)
 			continue;
 		rpc_user_index = i;
 		break;
@@ -566,12 +565,12 @@ proc_req(slurmdbd_conn_t *slurmdbd_conn,
 	END_TIMER;
 	slurm_mutex_lock(&rpc_mutex);
 	if (rpc_type_index >= 0) {
-		rpc_type_cnt[rpc_type_index]++;
-		rpc_type_time[rpc_type_index] += DELTA_TIMER;
+		rpc_stats.rpc_type_cnt[rpc_type_index]++;
+		rpc_stats.rpc_type_time[rpc_type_index] += DELTA_TIMER;
 	}
 	if (rpc_user_index >= 0) {
-		rpc_user_cnt[rpc_user_index]++;
-		rpc_user_time[rpc_user_index] += DELTA_TIMER;
+		rpc_stats.rpc_user_cnt[rpc_user_index]++;
+		rpc_stats.rpc_user_time[rpc_user_index] += DELTA_TIMER;
 	}
 	slurm_mutex_unlock(&rpc_mutex);
 
@@ -3859,7 +3858,7 @@ end_it:
 static int  _get_stats(slurmdbd_conn_t *slurmdbd_conn,
 		       Buf in_buffer, Buf *out_buffer, uint32_t *uid)
 {
-	int i, rc = SLURM_SUCCESS;
+	int rc = SLURM_SUCCESS;
 	char *comment = NULL;
 
 	if ((*uid != slurmdbd_conf->slurm_user_id && *uid != 0)
@@ -3878,23 +3877,8 @@ static int  _get_stats(slurmdbd_conn_t *slurmdbd_conn,
 	*out_buffer = init_buf(32 * 1024);
 	pack16((uint16_t) DBD_GOT_STATS, *out_buffer);
 	slurm_mutex_lock(&rpc_mutex);
-	for (i = 0; i < rpc_type_size; i++) {
-		if (rpc_type_id[i] == 0)
-			break;
-	}
-	pack32(i, *out_buffer);
-	pack16_array(rpc_type_id,   i, *out_buffer);
-	pack32_array(rpc_type_cnt,  i, *out_buffer);
-	pack64_array(rpc_type_time, i, *out_buffer);
-
-	for (i = 1; i < rpc_user_size; i++) {
-		if (rpc_user_id[i] == 0)
-			break;
-	}
-	pack32(i, *out_buffer);
-	pack32_array(rpc_user_id,   i, *out_buffer);
-	pack32_array(rpc_user_cnt,  i, *out_buffer);
-	pack64_array(rpc_user_time, i, *out_buffer);
+	slurmdb_pack_stats_msg(&rpc_stats, slurmdbd_conn->rpc_version,
+			       *out_buffer);
 	slurm_mutex_unlock(&rpc_mutex);
 
 	return rc;
@@ -3920,13 +3904,13 @@ static int  _clear_stats(slurmdbd_conn_t *slurmdbd_conn,
 
 	info("Clear stats request received from UID %u", *uid);
 	slurm_mutex_lock(&rpc_mutex);
-	for (i = 0; i < rpc_type_size; i++) {
-		rpc_type_cnt[i] = 0;
-		rpc_type_time[i] = 0;
+	for (i = 0; i < rpc_stats.type_cnt; i++) {
+		rpc_stats.rpc_type_cnt[i] = 0;
+		rpc_stats.rpc_type_time[i] = 0;
 	}
-	for (i = 0; i < rpc_user_size; i++) {
-		rpc_user_cnt[i] = 0;
-		rpc_user_time[i] = 0;
+	for (i = 0; i < rpc_stats.user_cnt; i++) {
+		rpc_stats.rpc_user_cnt[i] = 0;
+		rpc_stats.rpc_user_time[i] = 0;
 	}
 	slurm_mutex_unlock(&rpc_mutex);
 

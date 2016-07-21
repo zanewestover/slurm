@@ -518,7 +518,7 @@ _process_command (int argc, char *argv[])
 				 argv[0]);
 		}
 
-		rc = acct_storage_g_shutdown(db_conn);
+		rc = slurmdb_shutdown(db_conn);
 		if (rc != SLURM_SUCCESS)
 			fprintf(stderr, " Problem shutting down server: %s\n",
 				slurm_strerror(rc));
@@ -649,7 +649,7 @@ static void _clear_it (int argc, char *argv[])
 
 	/* First identify the entity to list */
 	if (!strncasecmp(argv[0], "Stats", MAX(command_len, 1))) {
-		error_code = acct_storage_g_clear_stats(db_conn);
+		error_code = slurmdb_clear_stats(db_conn);
 	} else {
 	helpme:
 		exit_code = 1;
@@ -714,8 +714,7 @@ static void _show_it (int argc, char *argv[])
 		   !strncasecmp(argv[0], "Resv", MAX(command_len, 4))) {
 		error_code = sacctmgr_list_reservation((argc - 1), &argv[1]);
 	} else if (!strncasecmp(argv[0], "Stats", MAX(command_len, 1))) {
-		error_code = acct_storage_g_get_stats(db_conn);
-
+		error_code = sacctmgr_list_stats();
 	} else if (!strncasecmp(argv[0], "Transactions", MAX(command_len, 1))
 		   || !strncasecmp(argv[0], "Txn", MAX(command_len, 1))) {
 		error_code = sacctmgr_list_txn((argc - 1), &argv[1]);

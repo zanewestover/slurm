@@ -163,3 +163,27 @@ extern int sacctmgr_list_config(bool have_db_conn)
 
 	return SLURM_SUCCESS;
 }
+
+extern int sacctmgr_list_stats(void)
+{
+	slurmdb_stats_rec_t *stats_ptr = NULL;
+	int error_code, i;
+
+	error_code = slurmdb_get_stats(db_conn, &stats_ptr);
+	if (error_code != SLURM_SUCCESS)
+		return error_code;
+
+	for (i = 0; i < stats_ptr->type_cnt; i++) {
+		printf("MSG_TYPE:%u CNT:%u TIME:%"PRIu64"\n",
+		       stats_ptr->rpc_type_id[i], stats_ptr->rpc_type_cnt[i],
+		       stats_ptr->rpc_type_time[i]);
+	}
+	for (i = 0; i < stats_ptr->user_cnt; i++) {
+		printf("USER_ID:%u CNT:%u TIME:%"PRIu64"\n",
+		       stats_ptr->rpc_user_id[i], stats_ptr->rpc_user_cnt[i],
+		       stats_ptr->rpc_user_time[i]);
+	}
+	slurmdb_destroy_stats_rec(stats_ptr);
+
+	return error_code;
+}
