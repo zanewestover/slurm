@@ -13084,7 +13084,6 @@ _pack_batch_job_launch_msg(batch_job_launch_msg_t * msg, Buf buffer,
 		packstr(msg->qos, buffer);
 		packstr(msg->resv_name, buffer);
 		packstr(msg->resv_ports, buffer);
-
 	} else {
 		error("_pack_batch_job_launch_msg: protocol_version "
 		      "%hu not supported", protocol_version);
@@ -13389,7 +13388,6 @@ _unpack_batch_job_launch_msg(batch_job_launch_msg_t ** msg, Buf buffer,
 		safe_unpackstr_xmalloc(&launch_msg_ptr->resv_ports,
 				       &uint32_tmp,
 				       buffer);
-
 	} else {
 		error("_unpack_batch_job_launch_msg: protocol_version "
 		      "%hu not supported", protocol_version);
