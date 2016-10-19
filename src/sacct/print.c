@@ -1560,7 +1560,7 @@ void print_fields(type_t type, void *object)
 
 				break;
 			case JOBSTEP:
-				tmp_uint32 = step->packstepid[0];
+				tmp_uint32 = step->packjobid;
 				break;
 			case JOBCOMP:
 
@@ -1579,7 +1579,7 @@ void print_fields(type_t type, void *object)
 
 				break;
 			case JOBSTEP:
-				tmp_uint32 = step->packstepid[1];
+				tmp_uint32 = step->packstepid;
 				break;
 			case JOBCOMP:
 
