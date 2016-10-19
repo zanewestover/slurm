@@ -9252,6 +9252,7 @@ _pack_job_desc_msg(job_desc_msg_t * job_desc_ptr, Buf buffer,
 			job_desc_ptr->select_jobinfo = NULL;
 		}
 		pack16(job_desc_ptr->wait_all_nodes, buffer);
+		pack8(job_desc_ptr->resv_port, buffer);
 		pack32(job_desc_ptr->bitflags, buffer);
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		packstr(job_desc_ptr->clusters, buffer);
@@ -9909,6 +9910,7 @@ _unpack_job_desc_msg(job_desc_msg_t ** job_desc_buffer_ptr, Buf buffer,
 		job_desc_ptr->mloaderimage = NULL;
 		job_desc_ptr->ramdiskimage = NULL;
 		safe_unpack16(&job_desc_ptr->wait_all_nodes, buffer);
+		safe_unpack8(&job_desc_ptr->resv_port, buffer);
 		safe_unpack32(&job_desc_ptr->bitflags, buffer);
 	} else if (protocol_version >= SLURM_MIN_PROTOCOL_VERSION) {
 		uint32_t tmp_mem;
@@ -13048,6 +13050,7 @@ _pack_batch_job_launch_msg(batch_job_launch_msg_t * msg, Buf buffer,
 		packstr(msg->account, buffer);
 		packstr(msg->qos, buffer);
 		packstr(msg->resv_name, buffer);
+		packstr(msg->resv_ports, buffer);
 
 	} else {
 		error("_pack_batch_job_launch_msg: protocol_version "
@@ -13348,6 +13351,9 @@ _unpack_batch_job_launch_msg(batch_job_launch_msg_t ** msg, Buf buffer,
 				       &uint32_tmp,
 				       buffer);
 		safe_unpackstr_xmalloc(&launch_msg_ptr->resv_name,
+				       &uint32_tmp,
+				       buffer);
+		safe_unpackstr_xmalloc(&launch_msg_ptr->resv_ports,
 				       &uint32_tmp,
 				       buffer);
 
