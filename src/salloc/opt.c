@@ -863,8 +863,7 @@ void set_options(const int argc, char **argv)
 			break;
 		case 'd':
 			xfree(opt.dependency);
-			if ((packjob == true) &&
-			    (strcmp(optarg, "pack") == 0)) {
+			if ((packjob == true) && !xstrcmp(optarg, "pack")) {
 				opt.dependency = xstrdup(optarg);
 				break;
 			}
@@ -973,8 +972,7 @@ void set_options(const int argc, char **argv)
 		case 'P':
 			verbose("-P option is deprecated, use -d instead");
 			xfree(opt.dependency);
-			if ((packjob == true) &&
-			    (strcmp(optarg, "pack") == 0)) {
+			if ((packjob == true) && !xstrcmp(optarg, "pack")) {
 				opt.dependency = xstrdup(optarg);
 				break;
 			}
