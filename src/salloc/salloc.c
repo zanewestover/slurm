@@ -1257,7 +1257,8 @@ static int _count_jobs(int ac, char **av)
 				       "following pack job delimiter" );
 		}
 	}
-	if(pack_desc_count) pack_desc_count++;
+	if(pack_desc_count)
+		 pack_desc_count++;
 	return pack_desc_count;
 }
 
@@ -1312,8 +1313,8 @@ static void _identify_job_descriptions(int ac, char **av)
 			command = xstrdup(av[index]);
 			if (xstrcmp(command, ":")) {
 				newcmd[i] = command;
-				if ((strncmp(command, "-d", 2) == 0) ||
-				    (strncmp(command, "--d", 3) == 0)) {
+				if (!xstrncmp(command, "-d", 2) ||
+				    !xstrncmp(command, "--d", 3)) {
 					dependency_position = i;
 				}
 				i++;
@@ -1794,14 +1795,14 @@ static int main_jobpack(int argc, char *argv[])
 			while ((alloc =
 				slurm_allocate_resources_callback(
 					&desc, _pending_callback)) == NULL) {
-			  if (((errno != ESLURM_ERROR_ON_DESC_TO_RECORD_COPY) &&
-			       (errno != EAGAIN)) || (retries >= MAX_RETRIES))
-				break;
-			  if (retries == 0)
-				error("%s", msg);
-			  else
-				debug("%s", msg);
-			  sleep (++retries);
+				if (((errno != ESLURM_ERROR_ON_DESC_TO_RECORD_COPY) &&
+					(errno != EAGAIN)) || (retries >= MAX_RETRIES))
+					break;
+				if (retries == 0)
+					error("%s", msg);
+				else
+					debug("%s", msg);
+				sleep (++retries);
 			}
 			if (!alloc)
 				fatal("JPCK: failed to allocate pack member");
@@ -1882,7 +1883,7 @@ static int main_jobpack(int argc, char *argv[])
 		if (pack_job_env[group_number].env[0] != NULL) {
 			copy_env(&env, pack_job_env[group_number].env);
 		} else {
-		        env = NULL;
+			env = NULL;
 		}
 		opt.jobid = pack_job_env[group_number].job_id;
 		alloc = existing_allocation();
@@ -1891,7 +1892,7 @@ static int main_jobpack(int argc, char *argv[])
 			     alloc->node_list, alloc->job_id);
 
 		if (alloc->env_size) {
-		        tmp = xmalloc(40);
+			tmp = xmalloc(40);
 			sprintf(tmp, "SLURM_RESV_PORTS_PACK_GROUP_%d",
 				group_number);
 			val = getenvp(alloc->environment, tmp);
@@ -2007,7 +2008,7 @@ relinquish:
 		for (group_number = 0; group_number < pack_desc_count;
 		     group_number++) {
 			copy_alloc_struct(alloc,
-					   pack_job_env[group_number].alloc);
+					  pack_job_env[group_number].alloc);
 			info("Relinquishing job allocation %u", alloc->job_id);
 			if ((slurm_complete_job(alloc->job_id, status) != 0) &&
 			    (slurm_get_errno() != ESLURM_ALREADY_DONE))

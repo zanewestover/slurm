@@ -103,8 +103,8 @@ static int _count_jobs(int ac, char **av)
 		if (!xstrcmp(av[index], ":")) {
 			pack_desc_count ++;
 			if (index+1 == ac)
-			        fatal( "Missing pack job specification "
-				       "following pack job delimiter" );
+				fatal( "Missing pack job specification "
+					"following pack job delimiter" );
 		}
 	}
 	if(pack_desc_count)
@@ -123,7 +123,6 @@ static void _build_env_structs(int ac, char **av)
 		pack_job_env[i].job_id = 0;
 		pack_job_env[i].av = (char **) NULL;
 		pack_job_env[i].ac = 0;
-
 	}
 	return;
 }
@@ -145,9 +144,8 @@ static void _identify_job_descriptions(int ac, char **av)
 	newcmd = xmalloc(sizeof(char *) * (ac + 1));
 	while (current < ac){
 		newcmd[0] = xstrdup(av[0]);
-		for (i = 1; i < (ac + 1); i++) {
+		for (i = 1; i < (ac + 1); i++)
 			newcmd[i] = NULL;
-		}
 		i = 1;
 		j = 1;
 		_pack_l = false;
@@ -156,16 +154,14 @@ static void _identify_job_descriptions(int ac, char **av)
 			command = xstrdup(av[index]);
 			if (xstrcmp(command, ":")) {
 				newcmd[i] = command;
-				if ((strncmp(command, "-d", 2) == 0) ||
-				    (strncmp(command, "--d", 3) == 0)) {
+				if (!xstrncmp(command, "-d", 2) ||
+				    !xstrncmp(command, "--d", 3))
 					dependency_position = i;
-				}
 				i++;
 				j++;
 			} else {
-				if (job_index == 0) {
+				if (job_index == 0)
 					_pack_l = true;
-				}
 				break;
 			}
 		}
@@ -174,7 +170,7 @@ static void _identify_job_descriptions(int ac, char **av)
 			if (job_index >= 1)
 				pack_job_env[job_index].pack_job = true;
 		} else {
-				pack_job_env[job_index].packleader = true;
+			pack_job_env[job_index].packleader = true;
 		}
 		current = index + 1;
 
@@ -255,10 +251,8 @@ static int _prepare_submit (job_desc_msg_t *desc, submit_response_msg_t *resp,
 	if (packjob == true)
 		_set_group_number_env(group_number);
 	slurm_init_job_desc_msg(desc);
-	if (_fill_job_desc_from_opts(desc) == -1) {
+	if (_fill_job_desc_from_opts(desc) == -1)
 		exit(error_exit);
-	}
-
 	desc->script = (char *)script_body;
 
 	/* If can run on multiple clusters find the earliest run time
@@ -287,13 +281,13 @@ static int _prepare_submit (job_desc_msg_t *desc, submit_response_msg_t *resp,
 
 		if (errno == ESLURM_ERROR_ON_DESC_TO_RECORD_COPY)
 			msg = "Slurm job queue full, sleeping and retrying.";
-		else if (errno == ESLURM_NODES_BUSY) {
+		else if (errno == ESLURM_NODES_BUSY)
 			msg = "Job step creation temporarily disabled, "
 			      "retrying";
-		} else if (errno == EAGAIN) {
+		else if (errno == EAGAIN)
 			msg = "Slurm temporarily unable to accept job, "
 			      "sleeping and retrying.";
-		} else
+		else
 			msg = NULL;
 		if ((msg == NULL) || (retries >= MAX_RETRIES)) {
 			error("Batch job submission failed: %m");
@@ -307,7 +301,7 @@ static int _prepare_submit (job_desc_msg_t *desc, submit_response_msg_t *resp,
 		else
 			error("%s", msg);
 		sleep (++retries);
-        }
+	}
 
 	if (packjob == true)
 		xstrfmtcat(pack_job_id,":%u", resp->job_id);
@@ -329,6 +323,7 @@ static int _prepare_submit (job_desc_msg_t *desc, submit_response_msg_t *resp,
 	slurm_free_submit_response_response_msg(resp);
 	return rc;
 }
+
 int main(int argc, char *argv[])
 {
 	log_options_t logopt = LOG_OPTS_STDERR_ONLY;
@@ -387,7 +382,6 @@ int main(int argc, char *argv[])
 
 	if (opt.burst_buffer_file)
 		_add_bb_to_script(&script_body, opt.burst_buffer_file);
-		
 
 	if (spank_init_post_opt() < 0) {
 		error("Plugin stack post-option processing failed");
@@ -429,7 +423,6 @@ int main(int argc, char *argv[])
 		exit(error_exit);
 	}
 
-
 	if (_check_cluster_specific_settings(&desc) != SLURM_SUCCESS)
 		exit(error_exit);
 
@@ -466,7 +459,7 @@ int main(int argc, char *argv[])
 		else
 			error("%s", msg);
 		sleep (++retries);
-        }
+	}
 
 	if (!opt.parsable){
 		printf("Submitted batch job %u", resp->job_id);
@@ -1114,7 +1107,7 @@ static void  _set_prio_process_env(void)
 /* Set SLURM_GROUP_NUMBER environment variable with current jobpack index */
 static void _set_group_number_env(uint32_t group_number)
 {
-        unsetenv("SLURM_GROUP_NUMBER");
+	unsetenv("SLURM_GROUP_NUMBER");
 	if (setenvf(NULL, "SLURM_GROUP_NUMBER", "%d", group_number) < 0) {
 		error ("unable to set SLURM_GROUP_NUMBER in environment");
 		return;
@@ -1335,7 +1328,7 @@ static int _set_rlimit_env(void)
 	 *  Now increase NOFILE to the max available for this srun
 	 */
 	if (getrlimit (RLIMIT_NOFILE, rlim) < 0)
-	 	return (error ("getrlimit (RLIMIT_NOFILE): %m"));
+		return (error ("getrlimit (RLIMIT_NOFILE): %m"));
 
 	if (rlim->rlim_cur < rlim->rlim_max) {
 		rlim->rlim_cur = rlim->rlim_max;
