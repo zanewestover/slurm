@@ -78,10 +78,10 @@ slurm_reconfigure (void)
 
 /*
  * slurm_ping - issue RPC to have Slurm controller (slurmctld)
- * IN controller - 1==primary controller, 2==secondary controller
+ * IN controller_id - 0=primary, 1=backup1, 2=backup2, etc.
  * RET 0 or a slurm error code
  */
-int
+extern int
 slurm_ping (int primary)
 {
 	int rc ;
@@ -89,7 +89,7 @@ slurm_ping (int primary)
 
 	slurm_msg_t_init(&request_msg);
 	request_msg.msg_type = REQUEST_PING ;
-
+//FIXME: Modify for multiple backups
 	if (primary == 1)
 		rc = _send_message_controller ( PRIMARY_CONTROLLER,
 						&request_msg );
@@ -121,7 +121,7 @@ slurm_shutdown (uint16_t options)
 	shutdown_msg.options = options;
 	req_msg.msg_type     = REQUEST_SHUTDOWN;
 	req_msg.data         = &shutdown_msg;
-
+//FIXME: Modify for multiple backups
 	/*
 	 * Explicity send the message to both primary
 	 *   and backup controllers
@@ -144,7 +144,7 @@ slurm_takeover ( void )
 
 	slurm_msg_t_init(&req_msg);
 	req_msg.msg_type     = REQUEST_TAKEOVER;
-
+//FIXME: Modify for multiple backups
 	return _send_message_controller(SECONDARY_CONTROLLER, &req_msg);
 }
 
@@ -154,7 +154,7 @@ _send_message_controller (enum controller_id dest, slurm_msg_t *req)
 	int rc = SLURM_PROTOCOL_SUCCESS;
 	int fd = -1;
 	slurm_msg_t resp_msg;
-
+//FIXME: Modify for multiple backups
 	/* always going to one node (primary or backup per value of "dest") */
 	if ((fd = slurm_open_controller_conn_spec(dest)) < 0)
 		slurm_seterrno_ret(SLURMCTLD_COMMUNICATIONS_CONNECTION_ERROR);

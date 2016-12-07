@@ -246,9 +246,9 @@ extern int parse_wiki_config(void)
 	for (i=0; i<HIDE_PART_CNT; i++)
 		hide_part_nodes_ptr[i] = NULL;
 	conf = slurm_conf_lock();
-	strncpy(e_host, conf->control_addr, sizeof(e_host));
-	if (conf->backup_addr) {
-		strncpy(e_host_bu, conf->backup_addr,
+	strncpy(e_host, conf->control_addr[0], sizeof(e_host));
+	if (conf->control_addr[1]) {
+		strncpy(e_host_bu, conf->control_addr[1],
 			sizeof(e_host));
 	}
 	kill_wait = conf->kill_wait;

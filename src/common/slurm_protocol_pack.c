@@ -6674,8 +6674,6 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->authinfo, buffer);
 		packstr(build_ptr->authtype, buffer);
 
-		packstr(build_ptr->backup_addr, buffer);
-		packstr(build_ptr->backup_controller, buffer);
 		pack16(build_ptr->batch_start_timeout, buffer);
 		pack_time(build_ptr->boot_time, buffer);
 		packstr(build_ptr->bb_type, buffer);
@@ -6683,8 +6681,10 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->chos_loc, buffer);
 		packstr(build_ptr->cluster_name, buffer);
 		pack16(build_ptr->complete_wait, buffer);
-		packstr(build_ptr->control_addr, buffer);
-		packstr(build_ptr->control_machine, buffer);
+		packstr_array(build_ptr->control_addr,
+			      build_ptr->control_cnt, buffer);
+		packstr_array(build_ptr->control_machine,
+			      build_ptr->control_cnt, buffer);
 		packstr(build_ptr->core_spec_plugin, buffer);
 		pack32(build_ptr->cpu_freq_def, buffer);
 		pack32(build_ptr->cpu_freq_govs, buffer);
@@ -6957,8 +6957,8 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->authinfo, buffer);
 		packstr(build_ptr->authtype, buffer);
 
-		packstr(build_ptr->backup_addr, buffer);
-		packstr(build_ptr->backup_controller, buffer);
+		packstr(build_ptr->control_addr[1], buffer);
+		packstr(build_ptr->control_machine[1], buffer);
 		pack16(build_ptr->batch_start_timeout, buffer);
 		pack_time(build_ptr->boot_time, buffer);
 		packstr(build_ptr->bb_type, buffer);
@@ -6966,8 +6966,8 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->chos_loc, buffer);
 		packstr(build_ptr->cluster_name, buffer);
 		pack16(build_ptr->complete_wait, buffer);
-		packstr(build_ptr->control_addr, buffer);
-		packstr(build_ptr->control_machine, buffer);
+		packstr(build_ptr->control_addr[0], buffer);
+		packstr(build_ptr->control_machine[0], buffer);
 		packstr(build_ptr->core_spec_plugin, buffer);
 		pack32(build_ptr->cpu_freq_def, buffer);
 		pack32(build_ptr->cpu_freq_govs, buffer);
@@ -7238,8 +7238,8 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->authinfo, buffer);
 		packstr(build_ptr->authtype, buffer);
 
-		packstr(build_ptr->backup_addr, buffer);
-		packstr(build_ptr->backup_controller, buffer);
+		packstr(build_ptr->control_addr[1], buffer);
+		packstr(build_ptr->control_machine[1], buffer);
 		pack16(build_ptr->batch_start_timeout, buffer);
 		pack_time(build_ptr->boot_time, buffer);
 		packstr(build_ptr->bb_type, buffer);
@@ -7247,8 +7247,8 @@ _pack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t * build_ptr, Buf buffer,
 		packstr(build_ptr->chos_loc, buffer);
 		packstr(build_ptr->cluster_name, buffer);
 		pack16(build_ptr->complete_wait, buffer);
-		packstr(build_ptr->control_addr, buffer);
-		packstr(build_ptr->control_machine, buffer);
+		packstr(build_ptr->control_addr[0], buffer);
+		packstr(build_ptr->control_machine[0], buffer);
 		packstr(build_ptr->core_spec_plugin, buffer);
 		pack32(build_ptr->cpu_freq_def, buffer);
 		pack32(build_ptr->cpu_freq_govs, buffer);
@@ -7550,10 +7550,6 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->authtype,
 				       &uint32_tmp, buffer);
 
-		safe_unpackstr_xmalloc(&build_ptr->backup_addr,
-				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->backup_controller,
-				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->batch_start_timeout, buffer);
 		safe_unpack_time(&build_ptr->boot_time, buffer);
 		safe_unpackstr_xmalloc(&build_ptr->bb_type,
@@ -7566,10 +7562,11 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->cluster_name,
 				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->complete_wait, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_addr,
-				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_machine,
-				       &uint32_tmp,buffer);
+
+		safe_unpackstr_array(&build_ptr->control_addr,
+				     &build_ptr->control_cnt, buffer);
+		safe_unpackstr_array(&build_ptr->control_machine,
+				     &build_ptr->control_cnt, buffer);
 		safe_unpackstr_xmalloc(&build_ptr->core_spec_plugin,
 				       &uint32_tmp, buffer);
 		safe_unpack32(&build_ptr->cpu_freq_def, buffer);
@@ -7950,9 +7947,12 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->authtype,
 				       &uint32_tmp, buffer);
 
-		safe_unpackstr_xmalloc(&build_ptr->backup_addr,
+		build_ptr->control_cnt = 2;
+		build_ptr->control_addr = xmalloc(sizeof(char *) * 2);
+		build_ptr->control_machine = xmalloc(sizeof(char *) * 2);
+		safe_unpackstr_xmalloc(&build_ptr->control_addr[1],
 				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->backup_controller,
+		safe_unpackstr_xmalloc(&build_ptr->control_machine[1],
 				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->batch_start_timeout, buffer);
 		safe_unpack_time(&build_ptr->boot_time, buffer);
@@ -7966,9 +7966,9 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->cluster_name,
 				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->complete_wait, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_addr,
+		safe_unpackstr_xmalloc(&build_ptr->control_addr[0],
 				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_machine,
+		safe_unpackstr_xmalloc(&build_ptr->control_machine[0],
 				       &uint32_tmp,buffer);
 		safe_unpackstr_xmalloc(&build_ptr->core_spec_plugin,
 				       &uint32_tmp, buffer);
@@ -8349,9 +8349,12 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->authtype,
 				       &uint32_tmp, buffer);
 
-		safe_unpackstr_xmalloc(&build_ptr->backup_addr,
+		build_ptr->control_cnt = 2;
+		build_ptr->control_addr = xmalloc(sizeof(char *) * 2);
+		build_ptr->control_machine = xmalloc(sizeof(char *) * 2);
+		safe_unpackstr_xmalloc(&build_ptr->control_addr[1],
 				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->backup_controller,
+		safe_unpackstr_xmalloc(&build_ptr->control_machine[1],
 				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->batch_start_timeout, buffer);
 		safe_unpack_time(&build_ptr->boot_time, buffer);
@@ -8365,9 +8368,9 @@ _unpack_slurm_ctl_conf_msg(slurm_ctl_conf_info_msg_t **build_buffer_ptr,
 		safe_unpackstr_xmalloc(&build_ptr->cluster_name,
 				       &uint32_tmp, buffer);
 		safe_unpack16(&build_ptr->complete_wait, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_addr,
+		safe_unpackstr_xmalloc(&build_ptr->control_addr[0],
 				       &uint32_tmp, buffer);
-		safe_unpackstr_xmalloc(&build_ptr->control_machine,
+		safe_unpackstr_xmalloc(&build_ptr->control_machine[0],
 				       &uint32_tmp,buffer);
 		safe_unpackstr_xmalloc(&build_ptr->core_spec_plugin,
 				       &uint32_tmp, buffer);
