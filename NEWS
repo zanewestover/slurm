@@ -32,6 +32,7 @@ documents those changes that are of interest to users and administrators.
  -- Add support for SALLOC_CONSTRAINT, SBATCH_CONSTRAINT and SLURM_CONSTRAINT
     environment variables to set default constraints for salloc, sbatch and
     srun commands respectively.
+ -- Add SLURM_JOB_GID to TaskProlog environment.
 
 * Changes in Slurm 17.02.0pre3
 ==============================
