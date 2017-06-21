@@ -197,7 +197,7 @@ relaunch:
 			goto relaunch;
 	}
 
-	fini_srun(job, got_alloc, &global_rc, 0);
+//	fini_srun(job, got_alloc, &global_rc, 0);
 }
 
 static void _launch_app(srun_job_t *job, List srun_job_list, bool got_alloc)
