@@ -46,6 +46,7 @@
 #include "src/common/slurm_xlator.h"
 #include "src/api/pmi_server.h"
 #include "src/srun/libsrun/allocate.h"
+#include "src/srun/libsrun/fname.h"
 #include "src/srun/libsrun/launch.h"
 #include "src/srun/libsrun/multi_prog.h"
 
@@ -660,6 +661,7 @@ extern int launch_p_step_launch(srun_job_t *job, slurm_step_io_fds_t *cio_fds,
 	if (!first_job) {
 //FIXME: Race condition for which step starts first. See _launch_one_app() in srun.c
 		first_job = job;
+} if (1) {
 		if (slurm_step_launch(job->step_ctx, &launch_params,
 				      &callbacks) != SLURM_SUCCESS) {
 			rc = errno;
